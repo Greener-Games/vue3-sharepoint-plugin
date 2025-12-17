@@ -1,0 +1,505 @@
+import {
+  IBatch,
+  ISharePointClient,
+  SearchRequestOptions,
+  SearchResult,
+  SharePointConfig,
+  SiteGroup,
+  SPBasePermissions,
+  UserInfo,
+  FieldDefinition,
+  FileVersion,
+} from '../types'
+import { spfi, SPFI } from '@pnp/sp'
+import { LogLevel, PnPLogging } from '@pnp/logging'
+import { Caching } from '@pnp/queryable'
+import '@pnp/sp/webs'
+import '@pnp/sp/lists'
+import '@pnp/sp/items'
+import '@pnp/sp/files'
+import '@pnp/sp/folders'
+import '@pnp/sp/fields'
+import '@pnp/sp/site-users/web'
+import '@pnp/sp/batching'
+
+export class PnPSharePointClient implements ISharePointClient {
+  private sp: SPFI
+  private baseUrl: string
+  private digestCache: string | null = null
+  private digestExpiry: number = 0
+  private authProvider?: () => Promise<Record<string, string>>
+  private enableCache: boolean = false
+
+  constructor(options: SharePointConfig) {
+    this.baseUrl = options.baseUrl
+    this.authProvider = options.authProvider
+    this.enableCache = !!options.enableCache
+
+    // 1. Initialize PnPjs with Warning logging to prevent hangs
+    this.sp = spfi(options.baseUrl).using(PnPLogging(LogLevel.Warning))
+
+    // 2. Enable PnPjs Caching for Standard CRUD (if enabled)
+    // Note: Search uses its own manual cache below
+    if (this.enableCache) {
+      console.log('✅ PnP: Caching Enabled (Session Storage)')
+      this.sp.using(
+        Caching({
+          store: 'session',
+          keyFactory: (url) => `${url}`,
+          expireFunc: () => {
+            const expiration = new Date()
+            expiration.setMinutes(expiration.getMinutes() + 15)
+            return expiration
+          },
+        })
+      )
+    }
+
+    console.log('✅ PnP: Client Initialized')
+  }
+
+  // --------------------------------------------------------------------------
+  // 1. SEARCH (Native Fetch + Manual Cache)
+  // --------------------------------------------------------------------------
+
+  async search<T = any>(
+    options: SearchRequestOptions
+  ): Promise<SearchResult<T>> {
+    const cacheKey = this.enableCache ? this.generateSearchKey(options) : ''
+
+    // A. Check Cache
+    if (this.enableCache) {
+      const cached = this.readFromCache<SearchResult<T>>(cacheKey)
+      if (cached) {
+        console.log('🔍 Search: Serving from Cache')
+        return cached
+      }
+    }
+
+    console.log('🔍 Search: Starting Direct Request...')
+
+    // B. Build Request
+    const endpoint = `${this.baseUrl}/_api/search/postquery`
+    const requestBody = {
+      request: {
+        Querytext: this.buildKql(options),
+        RowLimit: options.rowLimit || 10,
+        StartRow: options.startRow || 0,
+        SelectProperties: {
+          results: options.selectFields || [
+            'Title',
+            'Path',
+            'HitHighlightedSummary',
+            ...Object.keys(options.mapping || {}),
+          ],
+        },
+        TrimDuplicates: false,
+        ClientType: 'ContentSearchRegular',
+      },
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json;odata=verbose',
+      Accept: 'application/json;odata=nometadata',
+    }
+
+    if (this.authProvider) {
+      const auth = await this.authProvider()
+      if (auth) Object.assign(headers, auth)
+    }
+
+    const digest = await this.getDigestRaw()
+    if (digest) headers['X-RequestDigest'] = digest
+
+    try {
+      // C. Execute
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        const errText = await response.text()
+        throw new Error(`Search Failed (${response.status}): ${errText}`)
+      }
+
+      // D. Parse
+      const data = await response.json()
+      const relevantResults =
+        data.PrimaryQueryResult?.RelevantResults ||
+        data.postquery?.PrimaryQueryResult?.RelevantResults
+
+      if (!relevantResults) {
+        return { items: [], totalHits: 0, startRow: options.startRow || 0 }
+      }
+
+      const rawRows = relevantResults.Table?.Rows || []
+
+      // E. Map
+      const items = rawRows.map((row: any) => {
+        let map: any = {}
+        // Handle Verbose vs NoMetadata structures
+        if (row.Cells) {
+          row.Cells.forEach((c: any) => (map[c.Key] = c.Value))
+        } else {
+          map = row
+        }
+
+        if (options.mapping) {
+          const out: any = {}
+          Object.entries(options.mapping).forEach(([k, v]) => (out[v] = map[k]))
+          if (!out.url) out.url = map.Path
+          return out
+        }
+        return map
+      })
+
+      const result: SearchResult<T> = {
+        items: items as T[],
+        totalHits: relevantResults.TotalRows || 0,
+        startRow: options.startRow || 0,
+      }
+
+      // F. Cache Result
+      if (this.enableCache) {
+        this.writeToCache(cacheKey, result)
+      }
+
+      return result
+    } catch (error) {
+      console.error('❌ Search Error:', error)
+      throw error
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // 2. BATCHING
+  // --------------------------------------------------------------------------
+
+  async executeBatch(builder: (batch: IBatch) => void): Promise<void> {
+    const [batchedWeb, execute] = this.sp.web.batched()
+
+    const proxy: IBatch = {
+      createListItem: (list, payload) =>
+        batchedWeb.lists.getByTitle(list).items.add(payload),
+      updateListItem: (list, id, payload) =>
+        batchedWeb.lists.getByTitle(list).items.getById(id).update(payload),
+      deleteListItem: (list, id) =>
+        batchedWeb.lists.getByTitle(list).items.getById(id).recycle(),
+      deleteFile: (url) =>
+        batchedWeb.getFileByServerRelativePath(url).recycle(),
+    }
+
+    builder(proxy)
+    await execute()
+  }
+
+  // --------------------------------------------------------------------------
+  // 3. LIST ITEMS
+  // --------------------------------------------------------------------------
+
+  async createListItem<T = any>(
+    listTitle: string,
+    payload: Record<string, any>
+  ): Promise<T> {
+    const r = await this.sp.web.lists.getByTitle(listTitle).items.add(payload)
+    return r.data as T
+  }
+
+  async updateListItem(
+    listTitle: string,
+    id: number,
+    payload: Record<string, any>
+  ): Promise<void> {
+    await this.sp.web.lists
+      .getByTitle(listTitle)
+      .items.getById(id)
+      .update(payload)
+  }
+
+  async deleteListItem(listTitle: string, id: number): Promise<void> {
+    await this.sp.web.lists.getByTitle(listTitle).items.getById(id).recycle()
+  }
+
+  async getListItemById<T = any>(
+    listTitle: string,
+    id: number,
+    select?: string[]
+  ): Promise<T> {
+    let q = this.sp.web.lists.getByTitle(listTitle).items.getById(id)
+    if (select && select.length > 0) {
+      q = q.select(...select)
+    }
+    return (await q()) as T
+  }
+
+  // --------------------------------------------------------------------------
+  // 4. FILES & FOLDERS
+  // --------------------------------------------------------------------------
+
+  async uploadFile(
+    serverRelativeUrl: string,
+    fileName: string,
+    file: Blob | ArrayBuffer
+  ): Promise<string> {
+    const r = await this.sp.web
+      .getFolderByServerRelativePath(serverRelativeUrl)
+      .files.addUsingPath(fileName, file, { Overwrite: true })
+
+    // FIX: Cast to 'any' to avoid TS2339 when TS infers return type as IFileInfo
+    // Runtime returns { data: ..., file: ... }
+    return (r as any).data.ServerRelativeUrl
+  }
+
+  async downloadFile(serverRelativeUrl: string): Promise<Blob> {
+    return await this.sp.web
+      .getFileByServerRelativePath(serverRelativeUrl)
+      .getBlob()
+  }
+
+  async updateFileMetadata(
+    serverRelativeUrl: string,
+    payload: Record<string, any>
+  ): Promise<void> {
+    const item = await this.sp.web
+      .getFileByServerRelativePath(serverRelativeUrl)
+      .getItem()
+    await item.update(payload)
+  }
+
+  async deleteFile(serverRelativeUrl: string): Promise<void> {
+    await this.sp.web.getFileByServerRelativePath(serverRelativeUrl).recycle()
+  }
+
+  async createFolder(serverRelativeUrl: string): Promise<void> {
+    await this.sp.web.folders.addUsingPath(serverRelativeUrl)
+  }
+
+  // --------------------------------------------------------------------------
+  // 5. USERS & GROUPS
+  // --------------------------------------------------------------------------
+
+  async getCurrentUser(): Promise<UserInfo> {
+    return await this.sp.web.currentUser()
+  }
+
+  async getSiteUsers(): Promise<UserInfo[]> {
+    return await this.sp.web.siteUsers()
+  }
+
+  async getUserGroups(email?: string): Promise<SiteGroup[]> {
+    if (email) {
+      return await this.sp.web.siteUsers.getByEmail(email).groups()
+    }
+    return await this.sp.web.currentUser.groups()
+  }
+
+  async getUserEffectivePermissions(
+    email?: string
+  ): Promise<SPBasePermissions> {
+    if (email) {
+      // Resolve user first to get LoginName
+      const user = await this.sp.web.siteUsers.getByEmail(email)()
+      return await this.sp.web.getUserEffectivePermissions(user.LoginName)
+    }
+    return await this.sp.web.getCurrentUserEffectivePermissions()
+  }
+
+  // --------------------------------------------------------------------------
+  // 6. FIELDS & METADATA
+  // --------------------------------------------------------------------------
+
+  async getListFields(listTitle: string): Promise<FieldDefinition[]> {
+    const r = await this.sp.web.lists
+      .getByTitle(listTitle)
+      .fields.filter('Hidden eq false')()
+
+    return r.map((f: any) => ({
+      InternalName: f.InternalName,
+      Title: f.Title,
+      TypeAsString: f.TypeAsString,
+      Hidden: f.Hidden,
+      Choices: f.Choices || [],
+    }))
+  }
+
+  async getFieldChoices(
+    listTitle: string,
+    fieldInternalName: string
+  ): Promise<string[]> {
+    const f: any = await this.sp.web.lists
+      .getByTitle(listTitle)
+      .fields.getByInternalNameOrTitle(fieldInternalName)()
+    return f.Choices || []
+  }
+
+  // --------------------------------------------------------------------------
+  // 7. VERSION HISTORY
+  // --------------------------------------------------------------------------
+
+  async getFileVersions(serverRelativeUrl: string): Promise<FileVersion[]> {
+    const versions = await this.sp.web
+      .getFileByServerRelativePath(serverRelativeUrl)
+      .versions.expand('CreatedBy')()
+
+    return versions.map((v: any) => ({
+      VersionLabel: v.VersionLabel,
+      Created: v.Created,
+      CheckInComment: v.CheckInComment,
+      IsCurrentVersion: v.IsCurrentVersion,
+      Size: v.Size,
+      Url: v.Url,
+      CreatedBy: {
+        Id: v.CreatedBy?.Id,
+        Title: v.CreatedBy?.Title,
+        Email: v.CreatedBy?.Email,
+      },
+    }))
+  }
+
+  getVersionHistoryLink(serverRelativeUrl: string): string {
+    return `${
+      this.baseUrl || ''
+    }/_layouts/15/Versions.aspx?FileName=${encodeURIComponent(
+      serverRelativeUrl
+    )}`
+  }
+
+  // --------------------------------------------------------------------------
+  // PRIVATE HELPERS
+  // --------------------------------------------------------------------------
+
+  private async getDigestRaw(): Promise<string> {
+    const now = Date.now()
+    if (this.digestCache && now < this.digestExpiry) {
+      return this.digestCache
+    }
+
+    try {
+      const headers: Record<string, string> = {
+        Accept: 'application/json;odata=verbose',
+        'Content-Type': 'application/json;odata=verbose',
+      }
+      if (this.authProvider) {
+        const auth = await this.authProvider()
+        if (auth) Object.assign(headers, auth)
+      }
+
+      const response = await fetch(`${this.baseUrl}/_api/contextinfo`, {
+        method: 'POST',
+        headers,
+      })
+
+      if (!response.ok) return ''
+
+      const data = await response.json()
+      const val =
+        data.d?.GetContextWebInformation?.FormDigestValue ||
+        data.FormDigestValue
+
+      if (val) {
+        this.digestCache = val
+        this.digestExpiry = now + 1400 * 1000 // Cache ~24 mins
+        return val
+      }
+      return ''
+    } catch (e) {
+      return ''
+    }
+  }
+
+  private buildKql(opts: SearchRequestOptions): string {
+    const parts: string[] = []
+
+    // 1. Query Text
+    const txt = opts.query?.trim() || '*'
+    if (txt !== '*') {
+      if (opts.searchTitleOnly)
+        parts.push(`Title:"${txt.replace(/"/g, '""')}*"`)
+      else parts.push(txt)
+    } else {
+      parts.push('*')
+    }
+
+    // 2. Scope (Path)
+    if (opts.scope) {
+      const scopes = Array.isArray(opts.scope) ? opts.scope : [opts.scope]
+      let origin = ''
+      try {
+        origin = new URL(this.baseUrl).origin
+      } catch {
+        /* ignore */
+      }
+
+      const normalizedScopes = scopes.map((s) => {
+        const safeS = String(s || '')
+        if (safeS.toLowerCase().startsWith('http')) return `Path:"${safeS}*"`
+        const cleanPath = safeS.startsWith('/') ? safeS : `/${safeS}`
+        return `Path:"${origin}${cleanPath}*"`
+      })
+      parts.push(`(${normalizedScopes.join(' OR ')})`)
+    }
+
+    // 3. Filters
+    if (opts.filters) {
+      for (const [key, value] of Object.entries(opts.filters)) {
+        if (!value || (Array.isArray(value) && value.length === 0)) continue
+        let mp = key
+        // Resolve mapped property if alias is used
+        if (opts.mapping) {
+          const found = Object.keys(opts.mapping).find(
+            (k) => opts.mapping![k] === key
+          )
+          if (found) mp = found
+        }
+        if (Array.isArray(value))
+          parts.push(`(${value.map((v) => `${mp}:"${v}"`).join(' OR ')})`)
+        else parts.push(`${mp}:"${value}"`)
+      }
+    }
+    return parts.join(' AND ')
+  }
+
+  // --- Manual Search Cache Helpers ---
+  private generateSearchKey(opts: SearchRequestOptions): string {
+    return `SP_SEARCH_${this.hashCode(JSON.stringify(opts))}`
+  }
+
+  private readFromCache<T>(key: string): T | null {
+    try {
+      const item = sessionStorage.getItem(key)
+      if (!item) return null
+      const parsed = JSON.parse(item)
+      if (Date.now() > parsed.expiry) {
+        sessionStorage.removeItem(key)
+        return null
+      }
+      return parsed.data as T
+    } catch {
+      return null
+    }
+  }
+
+  private writeToCache(key: string, data: any) {
+    try {
+      const payload = {
+        data,
+        expiry: Date.now() + 15 * 60 * 1000, // 15 Mins
+      }
+      sessionStorage.setItem(key, JSON.stringify(payload))
+    } catch (e) {
+      /* ignore storage errors */
+    }
+  }
+
+  private hashCode(str: string): number {
+    let hash = 0
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i)
+      hash = (hash << 5) - hash + char
+      hash |= 0
+    }
+    return hash
+  }
+}
