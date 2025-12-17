@@ -336,13 +336,14 @@ export class RestSharePointClient implements ISharePointClient {
         opts.searchTitleOnly ? `Title:"${txt.replace(/"/g, '""')}*"` : txt
       )
     else parts.push('*')
-    if (opts.fileTypes?.length)
+    if (opts.fileTypes?.include?.length) {
       parts.push(
-        `(${opts.fileTypes.map((e) => `FileExtension:${e}`).join(' OR ')})`
+        `(${opts.fileTypes.include.map((e) => `FileExtension:${e}`).join(' OR ')})`
       )
-    if (opts.excludeFileTypes?.length) {
+    }
+    if (opts.fileTypes?.exclude?.length) {
       parts.push(
-        `(${opts.excludeFileTypes.map((e) => `NOT FileExtension:${e}`).join(' AND ')})`
+        `(${opts.fileTypes.exclude.map((e) => `NOT FileExtension:${e}`).join(' AND ')})`
       )
     }
     if (opts.scope) {

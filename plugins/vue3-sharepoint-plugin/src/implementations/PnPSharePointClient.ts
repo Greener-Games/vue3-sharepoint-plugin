@@ -539,16 +539,16 @@ export class PnPSharePointClient implements ISharePointClient {
     }
 
     // 1.5 File Types (Include / Exclude)
-    if (opts.fileTypes?.length) {
+    if (opts.fileTypes?.include?.length) {
       // Inclusion
       parts.push(
-        `(${opts.fileTypes.map((e) => `FileExtension:${e}`).join(' OR ')})`
+        `(${opts.fileTypes.include.map((e) => `FileExtension:${e}`).join(' OR ')})`
       )
     }
-    if (opts.excludeFileTypes?.length) {
+    if (opts.fileTypes?.exclude?.length) {
       // Exclusion
       parts.push(
-        `(${opts.excludeFileTypes.map((e) => `NOT FileExtension:${e}`).join(' AND ')})`
+        `(${opts.fileTypes.exclude.map((e) => `NOT FileExtension:${e}`).join(' AND ')})`
       )
     }
 

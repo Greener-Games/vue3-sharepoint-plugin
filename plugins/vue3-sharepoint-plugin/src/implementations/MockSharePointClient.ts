@@ -171,11 +171,20 @@ export class MockSharePointClient implements ISharePointClient {
       })
     }
 
-    // --- STEP 3.4: File Types Exclusion (Mock) ---
-    if (opts.excludeFileTypes?.length) {
+    // --- STEP 3.4: File Types (Inclusion / Exclusion) (Mock) ---
+    if (opts.fileTypes?.include?.length) {
+      const includes = opts.fileTypes.include.map(e => e.toLowerCase())
       allItems = allItems.filter(item => {
         const path = (item.Path || item.url || '').toLowerCase()
-        return !opts.excludeFileTypes!.some(ext => path.endsWith(`.${ext.toLowerCase()}`))
+        return includes.some(ext => path.endsWith(`.${ext}`))
+      })
+    }
+
+    if (opts.fileTypes?.exclude?.length) {
+      const excludes = opts.fileTypes.exclude.map(e => e.toLowerCase())
+      allItems = allItems.filter(item => {
+        const path = (item.Path || item.url || '').toLowerCase()
+        return !excludes.some(ext => path.endsWith(`.${ext}`))
       })
     }
 

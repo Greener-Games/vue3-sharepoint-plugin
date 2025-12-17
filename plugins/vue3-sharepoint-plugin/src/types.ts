@@ -23,7 +23,10 @@ export interface SearchRequestOptions {
   query?: string
   searchTitleOnly?: boolean
   scope?: string | string[]
-  fileTypes?: string[]
+  fileTypes?: {
+    include?: string[]
+    exclude?: string[]
+  }
   filters?: Record<string, FilterValue>
   rowLimit?: number
   startRow?: number
@@ -41,10 +44,6 @@ export interface SearchRequestOptions {
    * Calculated from the 'Path' managed property.
    */
   includeRelativePath?: boolean
-  /**
-   * List of file extensions to exclude from results (e.g. ['aspx', 'html']).
-   */
-  excludeFileTypes?: string[]
 }
 
 export interface SearchResult<T> {
