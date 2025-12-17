@@ -332,7 +332,23 @@ export class RestSharePointClient implements ISharePointClient {
       )
     if (opts.scope) {
       const scopes = Array.isArray(opts.scope) ? opts.scope : [opts.scope]
-      parts.push(`(${scopes.map((s) => `Path:"${s}*"`).join(' OR ')})`)
+      let origin = ''
+      try {
+        origin = new URL(this.baseUrl).origin
+      } catch {
+        /* ignore */
+      }
+      const normalizedScopes = scopes.map((s) => {
+        const safeS = String(s || '')
+        if (safeS.toLowerCase().startsWith('http')) return `Path:"${safeS}*"`
+        if (safeS.startsWith('/')) {
+          // Server Relative
+          return `Path:"${origin}${safeS}*"`
+        }
+        // Site Relative
+        return `Path:"${this.baseUrl}/${safeS}*"`
+      })
+      parts.push(`(${normalizedScopes.join(' OR ')})`)
     }
     if (opts.filters) {
       for (const [key, value] of Object.entries(opts.filters)) {

@@ -542,8 +542,12 @@ export class PnPSharePointClient implements ISharePointClient {
       const normalizedScopes = scopes.map((s) => {
         const safeS = String(s || '')
         if (safeS.toLowerCase().startsWith('http')) return `Path:"${safeS}*"`
-        const cleanPath = safeS.startsWith('/') ? safeS : `/${safeS}`
-        return `Path:"${origin}${cleanPath}*"`
+        if (safeS.startsWith('/')) {
+          // Server Relative
+          return `Path:"${origin}${safeS}*"`
+        }
+        // Site Relative
+        return `Path:"${this.baseUrl}/${safeS}*"`
       })
       parts.push(`(${normalizedScopes.join(' OR ')})`)
     }
