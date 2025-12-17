@@ -171,6 +171,16 @@ export class MockSharePointClient implements ISharePointClient {
       })
     }
 
+    // --- STEP 3.5: Result Type Filtering (Mock) ---
+    if (opts.resultType === 'folders') {
+      // In Mock, we assume items in `data.lists` are File/Items unless they have FSObjType=1
+      // If no FSObjType property exists, we assume it's NOT a folder.
+      allItems = allItems.filter(item => item.FSObjType === 1 || item.FileSystemObjectType === 1)
+    } else if (opts.resultType === 'items') {
+      // Exclude folders
+      allItems = allItems.filter(item => item.FSObjType !== 1 && item.FileSystemObjectType !== 1)
+    }
+
     // --- STEP 4: Metadata Filters ---
     if (opts.filters) {
       Object.entries(opts.filters).forEach(([key, value]) => {
@@ -197,12 +207,24 @@ export class MockSharePointClient implements ISharePointClient {
     const limit = opts.rowLimit || 10
 
     const mappedItems = allItems.slice(start, start + limit).map(item => {
-      if (!opts.mapping) return item
+      const map: any = { ...item }
+
+      if (opts.includeRelativePath && map.Path) {
+        try {
+          map.relativePath = decodeURIComponent(new URL(map.Path).pathname)
+        } catch {
+          map.relativePath = map.Path
+        }
+      }
+
+      if (!opts.mapping) return map
+
       const newItem: any = { ...item }
       Object.entries(opts.mapping).forEach(([spKey, friendly]) => {
         newItem[friendly] = item[spKey]
       })
       if (!newItem.url) newItem.url = item.Path
+      if (opts.includeRelativePath) newItem.relativePath = map.relativePath
       return newItem
     })
 

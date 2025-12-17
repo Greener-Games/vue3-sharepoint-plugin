@@ -151,10 +151,19 @@ export class PnPSharePointClient implements ISharePointClient {
           map = row
         }
 
+        if (options.includeRelativePath && map.Path) {
+          try {
+            map.relativePath = decodeURIComponent(new URL(map.Path).pathname)
+          } catch {
+            map.relativePath = map.Path
+          }
+        }
+
         if (options.mapping) {
           const out: any = {}
           Object.entries(options.mapping).forEach(([k, v]) => (out[v] = map[k]))
           if (!out.url) out.url = map.Path
+          if (options.includeRelativePath) out.relativePath = map.relativePath
           return out
         }
         return map
@@ -552,7 +561,14 @@ export class PnPSharePointClient implements ISharePointClient {
       parts.push(`(${normalizedScopes.join(' OR ')})`)
     }
 
-    // 3. Filters
+    // 3. Result Type
+    if (opts.resultType === 'items') {
+      parts.push(`(NOT ContentTypeId:0x0120*)`)
+    } else if (opts.resultType === 'folders') {
+      parts.push(`ContentTypeId:0x0120*`)
+    }
+
+    // 4. Filters
     if (opts.filters) {
       for (const [key, value] of Object.entries(opts.filters)) {
         if (!value || (Array.isArray(value) && value.length === 0)) continue

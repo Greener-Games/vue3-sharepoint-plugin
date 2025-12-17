@@ -255,10 +255,20 @@ export class RestSharePointClient implements ISharePointClient {
     const items = rows.map((r: any) => {
       const map: any = {}
       r.Cells.results.forEach((c: any) => (map[c.Key] = c.Value))
+
+      if (opts.includeRelativePath && map.Path) {
+        try {
+          map.relativePath = decodeURIComponent(new URL(map.Path).pathname)
+        } catch {
+          map.relativePath = map.Path
+        }
+      }
+
       if (opts.mapping) {
         const out: any = {}
         Object.entries(opts.mapping).forEach(([k, v]) => (out[v] = map[k]))
         if (!out.url) out.url = map.Path
+        if (opts.includeRelativePath) out.relativePath = map.relativePath
         return out
       }
       return map
@@ -350,6 +360,15 @@ export class RestSharePointClient implements ISharePointClient {
       })
       parts.push(`(${normalizedScopes.join(' OR ')})`)
     }
+
+    if (opts.resultType === 'items') {
+      // Exclude Folders (0x0120 is Folder ContentType)
+      parts.push(`(NOT ContentTypeId:0x0120*)`)
+    } else if (opts.resultType === 'folders') {
+      // Only Folders
+      parts.push(`ContentTypeId:0x0120*`)
+    }
+
     if (opts.filters) {
       for (const [key, value] of Object.entries(opts.filters)) {
         if (!value || (Array.isArray(value) && value.length === 0)) continue

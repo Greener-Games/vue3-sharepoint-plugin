@@ -29,6 +29,18 @@ export interface SearchRequestOptions {
   startRow?: number
   mapping?: Record<string, string>
   selectFields?: string[]
+  /**
+   * Filter search results by type.
+   * - 'items': Returns files and list items (excludes folders).
+   * - 'folders': Returns only folders.
+   * - 'all': Returns everything (default).
+   */
+  resultType?: 'items' | 'folders' | 'all'
+  /**
+   * If true, includes a 'relativePath' field in the returned items.
+   * Calculated from the 'Path' managed property.
+   */
+  includeRelativePath?: boolean
 }
 
 export interface SearchResult<T> {
