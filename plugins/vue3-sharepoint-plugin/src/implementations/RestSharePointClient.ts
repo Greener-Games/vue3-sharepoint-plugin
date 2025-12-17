@@ -13,6 +13,7 @@ import {
   ListInfo,
   AttachmentInfo,
 } from '../types'
+import { getServerRelativePath } from '../utils/urlUtils'
 
 // Internal Type (Fixes your error)
 interface InternalBatchItem {
@@ -328,38 +329,6 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   // --- Other Methods (Standard) ---
-  private getServerRelativePath(path: string): string {
-    if (path.startsWith('http')) {
-      try {
-        return decodeURIComponent(new URL(path).pathname)
-      } catch {
-        return path
-      }
-    }
-    if (path.startsWith('/')) {
-      // Already server relative (or starts with slash)
-      // Check if we need to prepend origin? No, standard convention is /sites/... is server relative.
-      // But if user provided `/Shared Documents`, that's site relative.
-      // Convention: /sites/ or /teams/ usually implies server relative.
-      // But let's assume if it starts with /, it is server relative as per usual SP dev convention.
-      // However, to support "universal" logic, we might want to check.
-      // But for file ops, usually we want exact control.
-      // Let's stick to: No leading slash = relative to baseUrl. Leading slash = server relative.
-      return path
-    }
-    // Site relative
-    let sitePath = ''
-    try {
-      sitePath = new URL(this.baseUrl).pathname
-    } catch {
-      // Fallback if baseUrl is malformed
-    }
-    // Ensure no double slash
-    const cleanSite = sitePath.replace(/\/$/, '')
-    const cleanPath = path.replace(/^\//, '')
-    return `${cleanSite}/${cleanPath}`
-  }
-
   private buildKql(opts: SearchRequestOptions): string {
     const parts: string[] = []
     const txt = opts.query?.trim() || '*'
@@ -515,7 +484,7 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async uploadFile(url: string, name: string, file: any) {
-    const fullUrl = this.getServerRelativePath(url)
+    const fullUrl = getServerRelativePath(url, this.baseUrl)
     const data = await this.request<any>(
       `/_api/web/getfolderbyserverrelativeurl('${fullUrl}')/files/add(url='${name}', overwrite=true)`,
       {
@@ -531,7 +500,7 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async downloadFile(url: string) {
-    const fullUrl = this.getServerRelativePath(url)
+    const fullUrl = getServerRelativePath(url, this.baseUrl)
     // We can't use centralized request for Blob return nicely without generic complexity or flag
     // So sticking to native fetch for blob download, but using helper for headers could be good.
     // However, downloadFile logic is simple enough.
@@ -544,7 +513,7 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async updateFileMetadata(url: string, payload: any) {
-    const fullUrl = this.getServerRelativePath(url)
+    const fullUrl = getServerRelativePath(url, this.baseUrl)
     // 1. Get List Item URI
     const meta = await this.request<any>(
        `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/ListItemAllFields`
@@ -565,7 +534,7 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async deleteFile(url: string) {
-    const fullUrl = this.getServerRelativePath(url)
+    const fullUrl = getServerRelativePath(url, this.baseUrl)
     await this.request(
       `/_api/web/getfilebyserverrelativeurl('${fullUrl}')`,
       {
@@ -580,7 +549,7 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async createFolder(url: string) {
-    const fullUrl = this.getServerRelativePath(url)
+    const fullUrl = getServerRelativePath(url, this.baseUrl)
     await this.request(
       `/_api/web/folders`,
       {
@@ -821,7 +790,7 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async getFileVersions(url: string): Promise<FileVersion[]> {
-    const fullUrl = this.getServerRelativePath(url)
+    const fullUrl = getServerRelativePath(url, this.baseUrl)
     // We expand CreatedBy to get the user name
     const endpoint = `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/versions?$expand=CreatedBy`
 

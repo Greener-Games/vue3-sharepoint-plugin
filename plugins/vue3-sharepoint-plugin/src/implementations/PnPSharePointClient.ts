@@ -273,7 +273,7 @@ export class PnPSharePointClient implements ISharePointClient {
     fileName: string,
     file: Blob | ArrayBuffer
   ): Promise<string> {
-    const fullUrl = this.getServerRelativePath(serverRelativeUrl)
+    const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     const r = await this.sp.web
       .getFolderByServerRelativePath(fullUrl)
       .files.addUsingPath(fileName, file, { Overwrite: true })
@@ -284,7 +284,7 @@ export class PnPSharePointClient implements ISharePointClient {
   }
 
   async downloadFile(serverRelativeUrl: string): Promise<Blob> {
-    const fullUrl = this.getServerRelativePath(serverRelativeUrl)
+    const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     return await this.sp.web
       .getFileByServerRelativePath(fullUrl)
       .getBlob()
@@ -294,7 +294,7 @@ export class PnPSharePointClient implements ISharePointClient {
     serverRelativeUrl: string,
     payload: Record<string, any>
   ): Promise<void> {
-    const fullUrl = this.getServerRelativePath(serverRelativeUrl)
+    const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     const item = await this.sp.web
       .getFileByServerRelativePath(fullUrl)
       .getItem()
@@ -302,12 +302,12 @@ export class PnPSharePointClient implements ISharePointClient {
   }
 
   async deleteFile(serverRelativeUrl: string): Promise<void> {
-    const fullUrl = this.getServerRelativePath(serverRelativeUrl)
+    const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     await this.sp.web.getFileByServerRelativePath(fullUrl).recycle()
   }
 
   async createFolder(serverRelativeUrl: string): Promise<void> {
-    const fullUrl = this.getServerRelativePath(serverRelativeUrl)
+    const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     await this.sp.web.folders.addUsingPath(fullUrl)
   }
 
@@ -460,7 +460,7 @@ export class PnPSharePointClient implements ISharePointClient {
   // --------------------------------------------------------------------------
 
   async getFileVersions(serverRelativeUrl: string): Promise<FileVersion[]> {
-    const fullUrl = this.getServerRelativePath(serverRelativeUrl)
+    const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     const versions = await this.sp.web
       .getFileByServerRelativePath(fullUrl)
       .versions.expand('CreatedBy')()
@@ -491,29 +491,6 @@ export class PnPSharePointClient implements ISharePointClient {
   // --------------------------------------------------------------------------
   // PRIVATE HELPERS
   // --------------------------------------------------------------------------
-
-  private getServerRelativePath(path: string): string {
-    if (path.startsWith('http')) {
-      try {
-        return decodeURIComponent(new URL(path).pathname)
-      } catch {
-        return path
-      }
-    }
-    if (path.startsWith('/')) {
-      return path
-    }
-    // Site relative
-    let sitePath = ''
-    try {
-      sitePath = new URL(this.baseUrl).pathname
-    } catch {
-      /* ignore */
-    }
-    const cleanSite = sitePath.replace(/\/$/, '')
-    const cleanPath = path.replace(/^\//, '')
-    return `${cleanSite}/${cleanPath}`
-  }
 
   private async getDigestRaw(): Promise<string> {
     const now = Date.now()
