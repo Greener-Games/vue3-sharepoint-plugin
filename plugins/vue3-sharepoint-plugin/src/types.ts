@@ -97,6 +97,26 @@ export interface EmailProperties {
   Body: string
 }
 
+export interface WebInfo {
+  Title: string
+  Url: string
+  Id: string
+  Description: string
+}
+
+export interface ListInfo {
+  Id: string
+  Title: string
+  Description: string
+  ItemCount: number
+  Hidden: boolean
+  ImageUrl: string
+}
+
+export interface AttachmentInfo {
+  FileName: string
+  ServerRelativeUrl: string
+}
 
 // Builder Interface
 export interface IBatch {
@@ -128,6 +148,13 @@ export interface ISharePointClient {
     id: number,
     select?: string[]
   ): Promise<T>
+
+  // Attachments
+  getItemAttachments(listTitle: string, itemId: number): Promise<AttachmentInfo[]>
+  addAttachment(listTitle: string, itemId: number, fileName: string, file: Blob | ArrayBuffer): Promise<void>
+  deleteAttachment(listTitle: string, itemId: number, fileName: string): Promise<void>
+
+  // Files & Folders
   uploadFile(
     serverRelativeUrl: string,
     fileName: string,
@@ -140,6 +167,18 @@ export interface ISharePointClient {
   ): Promise<void>
   deleteFile(serverRelativeUrl: string): Promise<void>
   createFolder(serverRelativeUrl: string): Promise<void>
+
+  // Webs
+  getWebInfo(): Promise<WebInfo>
+  getSubwebs(): Promise<WebInfo[]>
+
+  // Lists
+  getLists(): Promise<ListInfo[]>
+  getList(listTitle: string): Promise<ListInfo>
+  createList(title: string, description?: string, template?: number): Promise<ListInfo>
+  deleteList(title: string): Promise<void>
+
+  // Users & Groups
   getCurrentUser(): Promise<UserInfo>
   getListFields(listTitle: string): Promise<FieldDefinition[]>
   getFieldChoices(
@@ -149,12 +188,16 @@ export interface ISharePointClient {
 
   /** Get all users on the site */
   getSiteUsers(): Promise<UserInfo[]>
+  ensureUser(loginName: string): Promise<UserInfo>
 
   /**
    * Get the SharePoint Groups a user belongs to.
    * If email is omitted, returns groups for the Current User.
    */
   getUserGroups(email?: string): Promise<SiteGroup[]>
+  addUserToGroup(groupName: string, loginName: string): Promise<void>
+  removeUserFromGroup(groupName: string, loginName: string): Promise<void>
+  createGroup(groupName: string, description?: string): Promise<SiteGroup>
 
   /**
    * Get the effective permission mask for a user.
