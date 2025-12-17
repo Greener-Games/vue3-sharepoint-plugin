@@ -10,11 +10,14 @@
   <HelloWorld msg="Vite + Vue" />-->
   <cv-search/>
   <document-upload-test/>
+  <my-documents-dashboard view-mode="myteam"/>
+  <my-documents-dashboard view-mode="mydocuments"/>
 </template>
 
 <script setup lang="ts">
 import CvSearch from "@/components/CvSearch.vue";
 import DocumentUploadTest from "@/components/DocumentUploadTest.vue";
+import MyDocumentsDashboard from "@/components/MyDocumentsDashboard.vue";
 </script>
 
 <style scoped>

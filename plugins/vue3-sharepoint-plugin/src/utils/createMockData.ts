@@ -1,113 +1,42 @@
 import { FileVersion, UserInfo, SiteGroup } from '../types'
 import { MockData } from '../implementations/MockSharePointClient'
 
-// --- 1. Export Constants (Useful for UI Filters/Dropdowns in user apps) ---
+// --- 1. Export Constants ---
 export const MOCK_DIVISIONS = [
-  'Sales',
-  'Marketing',
-  'Human Resources',
-  'IT',
-  'Operations',
-  'Finance',
+  'Sales', 'Marketing', 'Human Resources', 'IT', 'Operations', 'Finance',
 ]
 export const MOCK_PRACTICES = [
-  'Digital Transformation',
-  'Cloud Computing',
-  'Data Analytics',
-  'Cyber Security',
-  'Product Development',
+  'Digital Transformation', 'Cloud Computing', 'Data Analytics', 'Cyber Security',
 ]
 export const MOCK_MARKETS = [
-  'North America',
-  'Europe',
-  'Asia Pacific',
-  'Latin America',
-  'Middle East',
+  'North America', 'Europe', 'Asia Pacific',
 ]
 export const MOCK_CAPABILITIES = [
-  'Strategic Planning',
-  'Process Optimization',
-  'Project Management',
-  'Compliance',
-  'Research & Development',
+  'Strategic Planning', 'Process Optimization', 'Compliance',
 ]
 export const MOCK_REGIONS = [
-  'East Coast',
-  'West Coast',
-  'Midwest',
-  'International',
-  'Headquarters',
+  'East Coast', 'West Coast', 'International',
+]
+export const MOCK_STATUSES = [
+  'Published', 'Published', 'Published', 'Pending', 'Draft'
+  // Weighted to have more published docs
 ]
 
-// --- 2. Internal Helpers for Randomization ---
+// --- 2. Internal Helpers ---
 const ROLES = [
-  {
-    title: 'Software Engineer',
-    ext: 'docx',
-    desc: 'Developing scalable web applications and microservices.',
-  },
-  {
-    title: 'Product Manager',
-    ext: 'pdf',
-    desc: 'Defining product roadmap and strategy for Q3 release.',
-  },
-  {
-    title: 'QA Analyst',
-    ext: 'docx',
-    desc: 'Executing regression testing and automated test scripts.',
-  },
-  {
-    title: 'Data Scientist',
-    ext: 'pdf',
-    desc: 'Analyzing customer behavior trends using machine learning models.',
-  },
-  {
-    title: 'System Architect',
-    ext: 'pptx',
-    desc: 'Designing high-availability cloud infrastructure on Azure.',
-  },
-  {
-    title: 'HR Coordinator',
-    ext: 'docx',
-    desc: 'Managing employee onboarding and benefits administration.',
-  },
-  {
-    title: 'Financial Analyst',
-    ext: 'pdf',
-    desc: 'Preparing quarterly financial reports and budget forecasts.',
-  },
+  { title: 'Software Engineer', ext: 'docx', desc: 'Technical design specs.' },
+  { title: 'Product Manager', ext: 'pdf', desc: 'Product roadmap Q3.' },
+  { title: 'QA Analyst', ext: 'docx', desc: 'Test plan execution.' },
+  { title: 'System Architect', ext: 'pptx', desc: 'Cloud infrastructure.' },
+  { title: 'HR Coordinator', ext: 'docx', desc: 'Onboarding checklist.' },
 ]
 
-const FIRST_NAMES = [
-  'John',
-  'Sarah',
-  'Tom',
-  'Emily',
-  'Michael',
-  'David',
-  'Jessica',
-]
-const LAST_NAMES = [
-  'Smith',
-  'Jones',
-  'Wilson',
-  'Brown',
-  'Taylor',
-  'Evans',
-  'Davies',
-]
-
-export const getRandom = <T>(arr: T[]) =>
-  arr[Math.floor(Math.random() * arr.length)]
+export const getRandom = <T>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)]
 
 // --- 3. Granular Helper Functions ---
 
 /** Creates a single mock user */
-export function createMockUser(
-  id: number,
-  name: string,
-  email: string
-): UserInfo {
+export function createMockUser(id: number, name: string, email: string): UserInfo {
   return {
     Id: id,
     Title: name,
@@ -118,18 +47,22 @@ export function createMockUser(
 
 /** Creates a mock SharePoint group */
 export function createMockGroup(id: number, title: string): SiteGroup {
-  return {
-    Id: id,
-    Title: title,
-    LoginName: title,
-  }
+  return { Id: id, Title: title, LoginName: title }
 }
 
-/** Returns a fully formed document list item, plus its file blob and versions */
+/**
+ * Extended definition for our internal logic to track reporting lines
+ */
+interface ExtendedUser extends UserInfo {
+  ReportsToEmail: string | null // Email of the line manager
+}
+
+/** Returns a fully formed document list item */
 export function createMockDocument(
-  id: number,
-  baseUrl: string,
-  libraryName = 'Shared Documents'
+    id: number,
+    baseUrl: string,
+    allUsers: ExtendedUser[], // We pass the pool of users to pick an owner
+    libraryName = 'Shared Documents'
 ): {
   item: any
   file: Blob
@@ -138,69 +71,69 @@ export function createMockDocument(
 } {
   const roleObj = getRandom(ROLES)
   const division = getRandom(MOCK_DIVISIONS)
+  const status = getRandom(MOCK_STATUSES)
+
+  // 1. Pick a Random Owner from our defined user pool
+  const ownerUser = getRandom(allUsers)
+
+  // 2. Determine Line Manager based on the user's structure
+  const managerEmail = ownerUser.ReportsToEmail || 'ceo@local'
+
   const fileName = `${roleObj.title}_${id}.${roleObj.ext}`
   const siteUrl = baseUrl.replace(/\/$/, '')
   const serverRelativeUrl = `${siteUrl}/${libraryName}/${division}/${fileName}`
 
-  // 1. Metadata Item
+  // 3. Metadata Item
   const item = {
     Id: id,
     UniqueId: `uuid-${id}`,
     Title: `Document - ${division} - ${roleObj.title}`,
     FileRef: serverRelativeUrl,
     Path: serverRelativeUrl,
-    AuthorId: 1,
-    Created: new Date(Date.now() - id * 86400000).toISOString(),
-    HitHighlightedSummary: `${roleObj.desc} Focused on ${getRandom(
-      MOCK_CAPABILITIES
-    )} within the ${getRandom(MOCK_MARKETS)} market.`,
-    RefinableString01: getRandom(MOCK_REGIONS),
-    RefinableString02: division,
-    RefinableString03: 'English',
-    RefinableString04: roleObj.ext === 'pdf' ? 'PDF' : 'Word',
+
+    // SharePoint Standard Fields
+    AuthorId: ownerUser.Id,
+    Author: ownerUser.Email, // In search results, Author is often the email or name
+    EditorId: ownerUser.Id,
+    Created: new Date(Date.now() - Math.floor(Math.random() * 1000000000)).toISOString(),
+
+    // Search Summary
+    HitHighlightedSummary: `${roleObj.desc} Owner: ${ownerUser.Title}. Status: ${status}.`,
+
+    // Custom Columns (Mapped Properties)
+    // These match the keys used in your Dashboard Component
+    DocumentType: roleObj.ext === 'pdf' ? 'PDF' : 'Word',
+    DocLanguage: 'English',
+    DocOwner: ownerUser.Title,       // Display Name
+    DocOwnerEmail: ownerUser.Email,  // For filtering
+    LineManager: managerEmail,       // For "My Team" filtering
+    DocStatus: status,               // For "Action" button logic
+
+    // Extra Metadata
     Practice: getRandom(MOCK_PRACTICES),
     Markets: getRandom(MOCK_MARKETS),
-    Capabilities: getRandom(MOCK_CAPABILITIES),
-    EmployeeDetails: `${getRandom(FIRST_NAMES)} ${getRandom(
-      LAST_NAMES
-    )}, Senior Lead`,
+    RefinableString01: division,     // Simulate mapped RefinableString
   }
 
-  // 2. File Blob
-  const file = new Blob([`Fake content for ${fileName}`], {
-    type: 'text/plain',
-  })
+  // 4. File Blob
+  const file = new Blob([`Fake content for ${fileName}`], { type: 'text/plain' })
 
-  // 3. Versions
+  // 5. Versions
   const versions: FileVersion[] = [
     {
-      VersionLabel: '2.0',
-      Created: new Date().toISOString(),
-      CheckInComment: 'Major release',
+      VersionLabel: '1.0',
+      Created: item.Created,
+      CheckInComment: 'Initial Upload',
       IsCurrentVersion: true,
       Size: 1024 + id,
       Url: serverRelativeUrl,
       CreatedBy: {
-        Id: 1,
-        Title: 'Dev User',
-        Email: 'dev@local',
-        LoginName: 'i:0#.f|dev',
+        Id: ownerUser.Id,
+        Title: ownerUser.Title,
+        Email: ownerUser.Email,
+        LoginName: ownerUser.LoginName
       },
-    },
-    {
-      VersionLabel: '1.0',
-      Created: new Date(Date.now() - 100000000).toISOString(),
-      CheckInComment: 'Initial Draft',
-      IsCurrentVersion: false,
-      Size: 512 + id,
-      Url: `${serverRelativeUrl}?v=1.0`,
-      CreatedBy: {
-        Id: 2,
-        Title: 'Admin',
-        Email: 'admin@local',
-        LoginName: 'i:0#.f|admin',
-      },
-    },
+    }
   ]
 
   return { item, file, versions, serverRelativeUrl }
@@ -208,29 +141,47 @@ export function createMockDocument(
 
 // --- 4. Main Factory Function ---
 
-/**
- * Generates a complete Mock SharePoint Environment.
- * @param docCount Number of documents to generate (default: 60)
- * @param baseUrl Base URL for the site (default: /sites/Intranet)
- * @returns A full MockData object ready for the Client
- */
 export function createMockData(
-  docCount = 60,
-  baseUrl = '/sites/Intranet'
+    docCount = 60,
+    baseUrl = '/sites/Intranet'
 ): MockData {
   const siteUrl = baseUrl.replace(/\/$/, '')
 
-  // A. Setup Users & Groups using helpers
-  const currentUser = createMockUser(1, 'Dev User', 'dev@local')
-  const adminUser = createMockUser(2, 'Site Admin', 'admin@local')
-  const siteUsers = [currentUser, adminUser]
+  // A. Setup Rich User Hierarchy
+  // 1. The Current Logged in User
+  const currentUser: ExtendedUser = {
+    ...createMockUser(1, 'Dev User', 'dev@local'),
+    ReportsToEmail: 'director@local'
+  }
 
-  const membersGroup = createMockGroup(1, 'Site Members')
-  const ownersGroup = createMockGroup(2, 'Site Owners')
+  // 2. People who report TO Dev User (For "My Team" Dashboard)
+  const teamMember1: ExtendedUser = {
+    ...createMockUser(3, 'Alice TeamMember', 'alice@local'),
+    ReportsToEmail: 'dev@local'
+  }
+  const teamMember2: ExtendedUser = {
+    ...createMockUser(4, 'Bob TeamMember', 'bob@local'),
+    ReportsToEmail: 'dev@local'
+  }
 
+  // 3. Peers (Report to Director, not Dev User)
+  const peerUser: ExtendedUser = {
+    ...createMockUser(5, 'Carol Peer', 'carol@local'),
+    ReportsToEmail: 'director@local'
+  }
+
+  // 4. The Boss
+  const directorUser: ExtendedUser = {
+    ...createMockUser(6, 'Director Dan', 'director@local'),
+    ReportsToEmail: null
+  }
+
+  const allUsers = [currentUser, teamMember1, teamMember2, peerUser, directorUser]
+
+  // Standard Arrays for MockClient
+  const siteUsers = allUsers.map(({ ReportsToEmail, ...u }) => u) // strip extra prop for standard return
   const userGroups: Record<string, SiteGroup[]> = {
-    [currentUser.Email]: [membersGroup],
-    [adminUser.Email]: [ownersGroup],
+    [currentUser.Email]: [createMockGroup(1, 'Site Members')],
   }
 
   // B. Containers
@@ -238,11 +189,12 @@ export function createMockData(
   const filesMap: Record<string, Blob | string> = {}
   const versionsMap: Record<string, FileVersion[]> = {}
 
-  // C. Generate Documents using helper
+  // C. Generate Documents
   for (let i = 0; i < docCount; i++) {
     const { item, file, versions, serverRelativeUrl } = createMockDocument(
-      1000 + i,
-      siteUrl
+        1000 + i,
+        siteUrl,
+        allUsers // Pass our specific user pool
     )
 
     documentsList.push(item)
@@ -255,16 +207,11 @@ export function createMockData(
     currentUser,
     siteUsers,
     userGroups,
-    delay: 400,
+    delay: 400, // Simulate network latency
     lists: {
       [`${siteUrl}/Shared Documents`]: documentsList,
       [`${siteUrl}/Lists/News`]: [
-        {
-          Id: 1,
-          Title: 'Company Announcement',
-          Created: new Date().toISOString(),
-        },
-        { Id: 2, Title: 'Holiday Schedule', Created: new Date().toISOString() },
+        { Id: 1, Title: 'Company Announcement', Created: new Date().toISOString() },
       ],
     },
     files: filesMap,
