@@ -171,6 +171,14 @@ export class MockSharePointClient implements ISharePointClient {
       })
     }
 
+    // --- STEP 3.4: File Types Exclusion (Mock) ---
+    if (opts.excludeFileTypes?.length) {
+      allItems = allItems.filter(item => {
+        const path = (item.Path || item.url || '').toLowerCase()
+        return !opts.excludeFileTypes!.some(ext => path.endsWith(`.${ext.toLowerCase()}`))
+      })
+    }
+
     // --- STEP 3.5: Result Type Filtering (Mock) ---
     if (opts.resultType === 'folders') {
       // In Mock, we assume items in `data.lists` are File/Items unless they have FSObjType=1

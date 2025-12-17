@@ -340,6 +340,11 @@ export class RestSharePointClient implements ISharePointClient {
       parts.push(
         `(${opts.fileTypes.map((e) => `FileExtension:${e}`).join(' OR ')})`
       )
+    if (opts.excludeFileTypes?.length) {
+      parts.push(
+        `(${opts.excludeFileTypes.map((e) => `NOT FileExtension:${e}`).join(' AND ')})`
+      )
+    }
     if (opts.scope) {
       const scopes = Array.isArray(opts.scope) ? opts.scope : [opts.scope]
       let origin = ''

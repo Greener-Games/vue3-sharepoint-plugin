@@ -41,6 +41,10 @@ export interface SearchRequestOptions {
    * Calculated from the 'Path' managed property.
    */
   includeRelativePath?: boolean
+  /**
+   * List of file extensions to exclude from results (e.g. ['aspx', 'html']).
+   */
+  excludeFileTypes?: string[]
 }
 
 export interface SearchResult<T> {
