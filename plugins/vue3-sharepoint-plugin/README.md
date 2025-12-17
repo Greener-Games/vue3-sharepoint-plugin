@@ -228,11 +228,15 @@ await upload('/sites/Dev/Docs', 'report.pdf', fileBlob)
 
 ### 📘 Files API Reference
 
+Paths can be either:
+*   **Site-Relative:** `'Shared Documents'` (automatically prepends `baseUrl`)
+*   **Server-Relative:** `'/sites/Intranet/Shared Documents'`
+
 **`upload(serverRelativeUrl, fileName, file)`**
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `serverRelativeUrl` | `string` | The target folder path. |
+| `serverRelativeUrl` | `string` | The target folder path (e.g. `'Shared Documents'`). |
 | `fileName` | `string` | The name of the file (e.g., `report.pdf`). |
 | `file` | `Blob` \| `ArrayBuffer` | The file content. |
 
@@ -240,26 +244,26 @@ await upload('/sites/Dev/Docs', 'report.pdf', fileBlob)
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `serverRelativeUrl` | `string` | The full path where the folder should be created. |
+| `serverRelativeUrl` | `string` | The path where the folder should be created. |
 
 **`updateFileMetadata(serverRelativeUrl, payload)`**
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `serverRelativeUrl` | `string` | The full path to the file. |
+| `serverRelativeUrl` | `string` | The path to the file. |
 | `payload` | `Record<string, any>` | Key-value pairs of metadata to update. |
 
 **`getVersions(serverRelativeUrl)`**
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `serverRelativeUrl` | `string` | The full path to the file. |
+| `serverRelativeUrl` | `string` | The path to the file. |
 
 **`downloadAndSave(serverRelativeUrl, fileName)`**
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `serverRelativeUrl` | `string` | The full path to the file. |
+| `serverRelativeUrl` | `string` | The path to the file. |
 | `fileName` | `string` | The name the file will be saved as. |
 
 ---

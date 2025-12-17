@@ -366,7 +366,16 @@ export class MockSharePointClient implements ISharePointClient {
     file: Blob | ArrayBuffer
   ): Promise<string> {
     await this.wait()
-    const fullPath = `${url}/${name}`
+    // Normalize url if it's site relative
+    let targetUrl = url
+    if (!targetUrl.startsWith('/') && !targetUrl.startsWith('http')) {
+        // Mock doesn't strictly have a "base URL" context in the same way, but usually keys are full server relative.
+        // However, we passed 'webInfo.Url' in constructor default.
+        // Let's assume we prepend the webUrl if it's missing slash.
+        targetUrl = `${this.data.webInfo!.Url}/${url}`
+    }
+
+    const fullPath = `${targetUrl}/${name}`
     this.data.files![fullPath] =
       file instanceof ArrayBuffer ? new Blob([file]) : file
     console.log(`[Mock] Uploaded ${fullPath}`)
@@ -375,7 +384,12 @@ export class MockSharePointClient implements ISharePointClient {
 
   async downloadFile(url: string): Promise<Blob> {
     await this.wait()
-    const f = this.data.files![url]
+    let targetUrl = url
+    if (!targetUrl.startsWith('/') && !targetUrl.startsWith('http')) {
+        targetUrl = `${this.data.webInfo!.Url}/${url}`
+    }
+
+    const f = this.data.files![targetUrl]
     if (!f) throw new Error('File not found')
     return typeof f === 'string' ? new Blob([f]) : f
   }

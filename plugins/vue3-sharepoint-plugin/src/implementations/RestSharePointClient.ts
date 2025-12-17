@@ -328,6 +328,38 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   // --- Other Methods (Standard) ---
+  private getServerRelativePath(path: string): string {
+    if (path.startsWith('http')) {
+      try {
+        return decodeURIComponent(new URL(path).pathname)
+      } catch {
+        return path
+      }
+    }
+    if (path.startsWith('/')) {
+      // Already server relative (or starts with slash)
+      // Check if we need to prepend origin? No, standard convention is /sites/... is server relative.
+      // But if user provided `/Shared Documents`, that's site relative.
+      // Convention: /sites/ or /teams/ usually implies server relative.
+      // But let's assume if it starts with /, it is server relative as per usual SP dev convention.
+      // However, to support "universal" logic, we might want to check.
+      // But for file ops, usually we want exact control.
+      // Let's stick to: No leading slash = relative to baseUrl. Leading slash = server relative.
+      return path
+    }
+    // Site relative
+    let sitePath = ''
+    try {
+      sitePath = new URL(this.baseUrl).pathname
+    } catch {
+      // Fallback if baseUrl is malformed
+    }
+    // Ensure no double slash
+    const cleanSite = sitePath.replace(/\/$/, '')
+    const cleanPath = path.replace(/^\//, '')
+    return `${cleanSite}/${cleanPath}`
+  }
+
   private buildKql(opts: SearchRequestOptions): string {
     const parts: string[] = []
     const txt = opts.query?.trim() || '*'
@@ -483,8 +515,9 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async uploadFile(url: string, name: string, file: any) {
+    const fullUrl = this.getServerRelativePath(url)
     const data = await this.request<any>(
-      `/_api/web/getfolderbyserverrelativeurl('${url}')/files/add(url='${name}', overwrite=true)`,
+      `/_api/web/getfolderbyserverrelativeurl('${fullUrl}')/files/add(url='${name}', overwrite=true)`,
       {
         method: 'POST',
         body: file,
@@ -498,21 +531,23 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async downloadFile(url: string) {
+    const fullUrl = this.getServerRelativePath(url)
     // We can't use centralized request for Blob return nicely without generic complexity or flag
     // So sticking to native fetch for blob download, but using helper for headers could be good.
     // However, downloadFile logic is simple enough.
     const headers = await this.getHeaders(false)
     const res = await fetch(
-      `${this.baseUrl}/_api/web/getfilebyserverrelativeurl('${url}')/$value`,
+      `${this.baseUrl}/_api/web/getfilebyserverrelativeurl('${fullUrl}')/$value`,
       { headers }
     )
     return await res.blob()
   }
 
   async updateFileMetadata(url: string, payload: any) {
+    const fullUrl = this.getServerRelativePath(url)
     // 1. Get List Item URI
     const meta = await this.request<any>(
-       `/_api/web/getfilebyserverrelativeurl('${url}')/ListItemAllFields`
+       `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/ListItemAllFields`
     )
     const uri = meta.__metadata.uri
     const type = meta.__metadata.type
@@ -530,8 +565,9 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async deleteFile(url: string) {
+    const fullUrl = this.getServerRelativePath(url)
     await this.request(
-      `/_api/web/getfilebyserverrelativeurl('${url}')`,
+      `/_api/web/getfilebyserverrelativeurl('${fullUrl}')`,
       {
         method: 'POST',
         headers: {
@@ -544,13 +580,14 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async createFolder(url: string) {
+    const fullUrl = this.getServerRelativePath(url)
     await this.request(
       `/_api/web/folders`,
       {
         method: 'POST',
         body: {
           __metadata: { type: 'SP.Folder' },
-          ServerRelativeUrl: url,
+          ServerRelativeUrl: fullUrl,
         },
         isWrite: true
       }
@@ -784,8 +821,9 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async getFileVersions(url: string): Promise<FileVersion[]> {
+    const fullUrl = this.getServerRelativePath(url)
     // We expand CreatedBy to get the user name
-    const endpoint = `/_api/web/getfilebyserverrelativeurl('${url}')/versions?$expand=CreatedBy`
+    const endpoint = `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/versions?$expand=CreatedBy`
 
     const results = await this.request<any[]>(endpoint)
 
