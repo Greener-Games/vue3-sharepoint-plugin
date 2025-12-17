@@ -168,7 +168,7 @@ interface FileRow {
 const TARGET_FOLDER = '/sites/TestSite/Shared Documents'
 
 // --- State ---
-const { upload, updateFileMetadata } = useSharePoint()
+const { upload, updateFileMetadata, deleteFile } = useSharePoint()
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const files = reactive<FileRow[]>([])
 const isDragging = ref(false)
@@ -241,8 +241,38 @@ const handleDrop = (event: DragEvent) => {
   }
 }
 
-const removeFile = (index: number) => {
+const removeFile = async (index: number) => {
+  const item = files[index]
+
+  // If already uploaded, try to delete from server
+  if (item.uploadStatus === 'success') {
+    if (!confirm('This file has been uploaded. Are you sure you want to delete it from SharePoint?')) {
+      return
+    }
+
+    try {
+      const cleanFolder = TARGET_FOLDER.replace(/\/+$/, '')
+      const fileUrl = `${cleanFolder}/${item.file.name}`
+      await deleteFile(fileUrl)
+    } catch (e) {
+      console.error('Failed to delete file', e)
+      alert('Failed to delete file from SharePoint')
+      return
+    }
+  }
+
   files.splice(index, 1)
+}
+
+const resetAll = () => {
+  if (files.length > 0) {
+    if (!confirm('Are you sure you want to clear all files? Uploaded files will remain on the server.')) {
+      return
+    }
+  }
+  files.splice(0, files.length)
+  globalMessage.value = ''
+  isError.value = false
 }
 
 // --- Upload Logic ---
@@ -260,7 +290,7 @@ const submitFiles = async () => {
 
     try {
       // 1. Upload File
-      await upload(TARGET_FOLDER, item.file, item.file.name)
+      await upload(TARGET_FOLDER, item.file.name, item.file)
 
       // 2. Set Metadata
       // Construct URL (SharePoint usually needs server relative URL for updating metadata)
@@ -536,6 +566,15 @@ tr:last-child td {
 
 .btn-outline:hover {
   background: #f0f0ff;
+}
+
+.btn-outline.danger {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.btn-outline.danger:hover {
+  background: #fef2f2;
 }
 
 .btn-primary {

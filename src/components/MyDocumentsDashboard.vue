@@ -103,7 +103,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
-import { useSharePoint, SearchRequestOptions } from 'vue3-sharepoint-plugin'
+import { useSharePoint, type SearchRequestOptions } from 'vue3-sharepoint-plugin'
 
 // --- Props ---
 const props = defineProps<{
@@ -199,7 +199,7 @@ const performSearch = async () => {
     ],
 
     rowLimit: 20,
-    sortlist: [{ Property: 'Created', Direction: 1 }]
+    // sortlist: [{ Property: 'Created', Direction: 1 }]
   }
 
   await execute(options)

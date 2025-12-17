@@ -1,36 +1,54 @@
 <template>
-<!--  <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://vuejs.org/" target="_blank">
-      <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-    </a>
+  <div class="app-container">
+    <examples-nav v-model="currentExample" />
+
+    <div class="content-area">
+      <keep-alive>
+        <component :is="currentComponent" v-bind="componentProps" />
+      </keep-alive>
+    </div>
   </div>
-  <HelloWorld msg="Vite + Vue" />-->
-  <cv-search/>
-  <document-upload-test/>
-  <my-documents-dashboard view-mode="myteam"/>
-  <my-documents-dashboard view-mode="mydocuments"/>
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import ExamplesNav from "@/components/ExamplesNav.vue";
 import CvSearch from "@/components/CvSearch.vue";
 import DocumentUploadTest from "@/components/DocumentUploadTest.vue";
 import MyDocumentsDashboard from "@/components/MyDocumentsDashboard.vue";
+import SystemInfo from "@/components/SystemInfo.vue";
+
+const currentExample = ref('search')
+
+const currentComponent = computed(() => {
+  switch (currentExample.value) {
+    case 'search': return CvSearch
+    case 'upload': return DocumentUploadTest
+    case 'mydocs': return MyDocumentsDashboard
+    case 'myteam': return MyDocumentsDashboard
+    case 'system': return SystemInfo
+    default: return CvSearch
+  }
+})
+
+const componentProps = computed(() => {
+  if (currentExample.value === 'mydocs') {
+    return { viewMode: 'mydocuments' }
+  }
+  if (currentExample.value === 'myteam') {
+    return { viewMode: 'myteam' }
+  }
+  return {}
+})
 </script>
 
 <style scoped>
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
+.app-container {
+  min-height: 100vh;
+  background-color: #f8fafc;
 }
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
+
+.content-area {
+  padding-bottom: 40px;
 }
 </style>
