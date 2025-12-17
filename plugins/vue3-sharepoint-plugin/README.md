@@ -89,12 +89,14 @@ const client = new MockSharePointClient(customMock)
 These utilities help generate data for the `MockSharePointClient`.
 
 **`createMockData(docCount, baseUrl)`**
+
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `docCount` | `number` | `60` | Number of documents to generate. |
 | `baseUrl` | `string` | `'/sites/Intranet'` | The base URL for the simulated site. |
 
 **`createMockUser(id, name, email)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `id` | `number` | Unique ID for the user. |
@@ -181,12 +183,14 @@ await updateItem('Tasks', newItem.Id, { Status: 'Active' })
 ### 📘 List API Reference
 
 **`addItem(listTitle, payload)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `listTitle` | `string` | The display name of the list (e.g., 'Tasks'). |
 | `payload` | `Record<string, any>` | Object matching list columns (e.g., `{ Title: 'A' }`). |
 
 **`updateItem(listTitle, id, payload)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `listTitle` | `string` | The display name of the list. |
@@ -194,12 +198,14 @@ await updateItem('Tasks', newItem.Id, { Status: 'Active' })
 | `payload` | `Record<string, any>` | The fields to change (Merge update). |
 
 **`deleteItem(listTitle, id)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `listTitle` | `string` | The display name of the list. |
 | `id` | `number` | The integer ID of the item to recycle. |
 
 **`getItem(listTitle, id, select?)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `listTitle` | `string` | The display name of the list. |
@@ -223,6 +229,7 @@ await upload('/sites/Dev/Docs', 'report.pdf', fileBlob)
 ### 📘 Files API Reference
 
 **`upload(serverRelativeUrl, fileName, file)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `serverRelativeUrl` | `string` | The target folder path. |
@@ -230,22 +237,26 @@ await upload('/sites/Dev/Docs', 'report.pdf', fileBlob)
 | `file` | `Blob` \| `ArrayBuffer` | The file content. |
 
 **`createFolder(serverRelativeUrl)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `serverRelativeUrl` | `string` | The full path where the folder should be created. |
 
 **`updateFileMetadata(serverRelativeUrl, payload)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `serverRelativeUrl` | `string` | The full path to the file. |
 | `payload` | `Record<string, any>` | Key-value pairs of metadata to update. |
 
 **`getVersions(serverRelativeUrl)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `serverRelativeUrl` | `string` | The full path to the file. |
 
 **`downloadAndSave(serverRelativeUrl, fileName)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `serverRelativeUrl` | `string` | The full path to the file. |
@@ -274,16 +285,19 @@ Returns all users from the User Information List of the site.
 *   **Returns:** `Promise<UserInfo[]>`
 
 **`getUserGroups(email?)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `email` | `string` | (Optional) Email of the user. Defaults to current user if omitted. |
 
 **`getPermissions(email?)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `email` | `string` | (Optional) Email of the user. Defaults to current user if omitted. |
 
 **`hasPermission(permissions, kind)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `permissions` | `SPBasePermissions` | The object returned from `getPermissions()`. |
@@ -308,6 +322,7 @@ await executeBatch((batch) => {
 ### 📘 Batch API Reference
 
 **`executeBatch(callback)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `callback` | `(batch: IBatch) => void` | A function that receives a `batch` builder. |
