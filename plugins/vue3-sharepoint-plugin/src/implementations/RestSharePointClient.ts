@@ -14,6 +14,7 @@ import {
   AttachmentInfo,
 } from '../types'
 import { getServerRelativePath } from '../utils/urlUtils'
+import { Logger } from '../utils/debug'
 
 // Internal Type (Fixes your error)
 interface InternalBatchItem {
@@ -63,6 +64,7 @@ export class RestSharePointClient implements ISharePointClient {
   private baseUrl: string
   private authProvider?: () => Promise<Record<string, string>>
   private cache: InternalCache
+  private logger: Logger
 
   // Digest Caching (Memory only)
   private digestCache: string | null = null
@@ -72,6 +74,7 @@ export class RestSharePointClient implements ISharePointClient {
     this.baseUrl = options.baseUrl.replace(/\/$/, '')
     this.authProvider = options.authProvider
     this.cache = new InternalCache(options.enableCache ?? true)
+    this.logger = new Logger(options.debug)
   }
 
   // --- Centralized Request Handler ---
@@ -111,10 +114,13 @@ export class RestSharePointClient implements ISharePointClient {
       fetchOptions.body = isBinary || typeof body === 'string' ? body : JSON.stringify(body)
     }
 
+    this.logger.log(`Request: ${method} ${fullUrl}`, body ? { body } : '')
+
     const response = await fetch(fullUrl, fetchOptions)
 
     if (!response.ok) {
       const errorText = await response.text()
+      this.logger.error(`Request Failed: ${response.status} ${response.statusText}`, errorText)
       throw new Error(
         `SharePoint Request Failed: ${method} ${endpoint} - ${response.status} ${response.statusText}\n${errorText}`
       )
@@ -126,6 +132,7 @@ export class RestSharePointClient implements ISharePointClient {
     }
 
     const data = await response.json()
+    this.logger.log(`Response: ${response.status}`, data)
 
     if (options.skipMetadata) {
       return data as T
@@ -179,6 +186,7 @@ export class RestSharePointClient implements ISharePointClient {
 
     builder(proxy) // Fill Queue
     if (queue.length === 0) return
+    this.logger.log(`Executing Batch with ${queue.length} items`)
     await this.processInternalBatch(queue)
   }
 
@@ -225,6 +233,8 @@ export class RestSharePointClient implements ISharePointClient {
   // --- Search ---
   async search<T = any>(opts: SearchRequestOptions): Promise<SearchResult<T>> {
     const kql = this.buildKql(opts)
+    this.logger.log(`Search KQL: ${kql}`)
+
     const select = opts.selectFields || [
       'Title',
       'Path',

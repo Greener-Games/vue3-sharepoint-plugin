@@ -240,4 +240,8 @@ export interface SharePointConfig {
    * Search results are usually not cached to ensure freshness.
    */
   enableCache?: boolean
+  /**
+   * If true, enables verbose logging to the console for debugging purposes.
+   */
+  debug?: boolean
 }

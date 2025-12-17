@@ -13,6 +13,8 @@ import {
   ListInfo,
   AttachmentInfo,
 } from '../types'
+import { getServerRelativePath } from '../utils/urlUtils'
+import { Logger } from '../utils/debug'
 import { spfi, SPFI } from '@pnp/sp'
 import { LogLevel, PnPLogging } from '@pnp/logging'
 import { Caching } from '@pnp/queryable'
@@ -34,13 +36,17 @@ export class PnPSharePointClient implements ISharePointClient {
   private digestExpiry: number = 0
   private authProvider?: () => Promise<Record<string, string>>
   private enableCache: boolean = false
+  private logger: Logger
 
   constructor(options: SharePointConfig) {
     this.baseUrl = options.baseUrl
     this.authProvider = options.authProvider
     this.enableCache = !!options.enableCache
+    this.logger = new Logger(options.debug)
 
     // 1. Initialize PnPjs with Warning logging to prevent hangs
+    // If debug is on, we might want to increase log level, but kept to Warning to avoid spam unless PnPLogging supports it well.
+    // For now we use our own logger.
     this.sp = spfi(options.baseUrl).using(PnPLogging(2)) // 2 = LogLevel.Warning
 
     // 2. Enable PnPjs Caching for Standard CRUD (if enabled)
@@ -60,7 +66,7 @@ export class PnPSharePointClient implements ISharePointClient {
       )
     }
 
-    console.log('✅ PnP: Client Initialized')
+    this.logger.log('PnP: Client Initialized')
   }
 
   // --------------------------------------------------------------------------
@@ -76,64 +82,37 @@ export class PnPSharePointClient implements ISharePointClient {
     if (this.enableCache) {
       const cached = this.readFromCache<SearchResult<T>>(cacheKey)
       if (cached) {
-        console.log('🔍 Search: Serving from Cache')
+        this.logger.log('Search: Serving from Cache')
         return cached
       }
     }
 
-    console.log('🔍 Search: Starting Direct Request...')
+    this.logger.log('Search: Starting PnPjs Request...')
 
-    // B. Build Request
-    const endpoint = `${this.baseUrl}/_api/search/postquery`
-    const requestBody = {
-      request: {
-        Querytext: this.buildKql(options),
-        RowLimit: options.rowLimit || 10,
-        StartRow: options.startRow || 0,
-        SelectProperties: {
-          results: options.selectFields || [
-            'Title',
-            'Path',
-            'HitHighlightedSummary',
-            ...Object.keys(options.mapping || {}),
-          ],
-        },
-        TrimDuplicates: false,
-        ClientType: 'ContentSearchRegular',
-      },
-    }
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json;odata=verbose',
-      Accept: 'application/json;odata=nometadata',
-    }
-
-    if (this.authProvider) {
-      const auth = await this.authProvider()
-      if (auth) Object.assign(headers, auth)
-    }
-
-    const digest = await this.getDigestRaw()
-    if (digest) headers['X-RequestDigest'] = digest
+    const kql = this.buildKql(options)
+    this.logger.log(`Search KQL: ${kql}`)
 
     try {
-      // C. Execute
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(requestBody),
+      const select = options.selectFields || [
+        'Title',
+        'Path',
+        'HitHighlightedSummary',
+        ...Object.keys(options.mapping || {}),
+      ]
+
+      const searchResults = await this.sp.search({
+        Querytext: kql,
+        RowLimit: options.rowLimit || 10,
+        StartRow: options.startRow || 0,
+        SelectProperties: select,
+        TrimDuplicates: false,
+        ClientType: 'ContentSearchRegular',
       })
 
-      if (!response.ok) {
-        const errText = await response.text()
-        throw new Error(`Search Failed (${response.status}): ${errText}`)
-      }
+      this.logger.log(`Search Results:`, searchResults)
 
-      // D. Parse
-      const data = await response.json()
       const relevantResults =
-        data.PrimaryQueryResult?.RelevantResults ||
-        data.postquery?.PrimaryQueryResult?.RelevantResults
+        searchResults.PrimaryQueryResult?.RelevantResults
 
       if (!relevantResults) {
         return { items: [], totalHits: 0, startRow: options.startRow || 0 }
@@ -144,7 +123,7 @@ export class PnPSharePointClient implements ISharePointClient {
       // E. Map
       const items = rawRows.map((row: any) => {
         let map: any = {}
-        // Handle Verbose vs NoMetadata structures
+        // PnPjs normalizes this usually, but let's stick to reading Cells if present
         if (row.Cells) {
           row.Cells.forEach((c: any) => (map[c.Key] = c.Value))
         } else {
@@ -182,7 +161,7 @@ export class PnPSharePointClient implements ISharePointClient {
 
       return result
     } catch (error) {
-      console.error('❌ Search Error:', error)
+      this.logger.error('Search Error:', error)
       throw error
     }
   }
@@ -206,6 +185,7 @@ export class PnPSharePointClient implements ISharePointClient {
     }
 
     builder(proxy)
+    this.logger.log(`Executing Batch...`)
     await execute()
   }
 

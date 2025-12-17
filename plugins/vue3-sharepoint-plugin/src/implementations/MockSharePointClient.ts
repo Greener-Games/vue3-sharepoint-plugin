@@ -13,6 +13,7 @@ import {
   ListInfo,
   AttachmentInfo,
 } from '../types'
+import { Logger } from '../utils/debug'
 
 export interface MockData {
   /** Current Logged in User */
@@ -69,10 +70,15 @@ export interface MockData {
    * List Info
    */
   listsInfo?: ListInfo[]
+  /**
+   * Debug flag
+   */
+  debug?: boolean
 }
 
 export class MockSharePointClient implements ISharePointClient {
   private data: MockData
+  private logger: Logger
 
   constructor(data: MockData = {}) {
     // Set Defaults if not provided
@@ -100,6 +106,7 @@ export class MockSharePointClient implements ISharePointClient {
       },
       ...data,
     }
+    this.logger = new Logger(data.debug)
   }
 
   private async wait() {
@@ -109,7 +116,7 @@ export class MockSharePointClient implements ISharePointClient {
   // --- 1. SEARCH ---
   async search<T = any>(opts: SearchRequestOptions): Promise<SearchResult<T>> {
     await this.wait()
-    console.log('[Mock] Search Options:', opts)
+    this.logger.log('Search Options:', opts)
 
     let allItems: any[] = []
 
@@ -304,7 +311,7 @@ export class MockSharePointClient implements ISharePointClient {
     if (!this.data.userGroups![user.Email].find(g => g.Title === groupName)) {
       this.data.userGroups![user.Email].push(group)
     }
-    console.log(`[Mock] Added ${loginName} to group ${groupName}`)
+    this.logger.log(`Added ${loginName} to group ${groupName}`)
   }
 
   async removeUserFromGroup(groupName: string, loginName: string): Promise<void> {
@@ -317,14 +324,14 @@ export class MockSharePointClient implements ISharePointClient {
     if (groups) {
       this.data.userGroups![user.Email] = groups.filter(g => g.Title !== groupName)
     }
-    console.log(`[Mock] Removed ${loginName} from group ${groupName}`)
+    this.logger.log(`Removed ${loginName} from group ${groupName}`)
   }
 
   async createGroup(groupName: string, description?: string): Promise<SiteGroup> {
     await this.wait()
     const newGroup = { Id: Math.floor(Math.random() * 1000), Title: groupName, Description: description }
     this.data.siteGroups?.push(newGroup)
-    console.log(`[Mock] Created group ${groupName}`)
+    this.logger.log(`Created group ${groupName}`)
     return newGroup
   }
 
@@ -344,8 +351,8 @@ export class MockSharePointClient implements ISharePointClient {
 
   async sendEmail(props: EmailProperties): Promise<void> {
     await this.wait()
-    console.log(
-      `[Mock] 📧 Sent Email to [${props.To.join(', ')}]: ${props.Subject}`
+    this.logger.log(
+      `📧 Sent Email to [${props.To.join(', ')}]: ${props.Subject}`
     )
   }
 
@@ -378,7 +385,7 @@ export class MockSharePointClient implements ISharePointClient {
     const fullPath = `${targetUrl}/${name}`
     this.data.files![fullPath] =
       file instanceof ArrayBuffer ? new Blob([file]) : file
-    console.log(`[Mock] Uploaded ${fullPath}`)
+    this.logger.log(`Uploaded ${fullPath}`)
     return fullPath
   }
 
@@ -405,12 +412,12 @@ export class MockSharePointClient implements ISharePointClient {
     return newItem
   }
   async updateListItem(list: string, id: number, payload: any) {
-    console.log(`[Mock] Update ${list} #${id}`, payload)
+    this.logger.log(`Update ${list} #${id}`, payload)
     const item = this.data.lists![list]?.find(i => i.Id === id)
     if (item) Object.assign(item, payload)
   }
   async deleteListItem(list: string, id: number) {
-    console.log(`[Mock] Delete ${list} #${id}`)
+    this.logger.log(`Delete ${list} #${id}`)
     if (this.data.lists![list]) {
       this.data.lists![list] = this.data.lists![list].filter(i => i.Id !== id)
     }
@@ -419,16 +426,16 @@ export class MockSharePointClient implements ISharePointClient {
     return this.data.lists![list]?.find((i) => i.Id === id)
   }
   async updateFileMetadata(url: string, payload: any) {
-    console.log(`[Mock] Update Meta ${url}`, payload)
+    this.logger.log(`Update Meta ${url}`, payload)
   }
   async deleteFile(url: string) {
     delete this.data.files![url]
   }
   async createFolder(url: string) {
-    console.log(`[Mock] Create Folder ${url}`)
+    this.logger.log(`Create Folder ${url}`)
   }
   async restoreItem(id: string | number) {
-    console.log(`[Mock] Restore ${id}`)
+    this.logger.log(`Restore ${id}`)
   }
   async getListFields() {
     return []
@@ -509,10 +516,10 @@ export class MockSharePointClient implements ISharePointClient {
   }
 
   async addAttachment(listTitle: string, itemId: number, fileName: string, file: Blob | ArrayBuffer): Promise<void> {
-    console.log(`[Mock] Added attachment ${fileName} to ${listTitle} item ${itemId}`)
+    this.logger.log(`Added attachment ${fileName} to ${listTitle} item ${itemId}`)
   }
 
   async deleteAttachment(listTitle: string, itemId: number, fileName: string): Promise<void> {
-     console.log(`[Mock] Deleted attachment ${fileName} from ${listTitle} item ${itemId}`)
+     this.logger.log(`Deleted attachment ${fileName} from ${listTitle} item ${itemId}`)
   }
 }
