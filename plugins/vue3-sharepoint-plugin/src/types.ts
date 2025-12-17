@@ -23,12 +23,27 @@ export interface SearchRequestOptions {
   query?: string
   searchTitleOnly?: boolean
   scope?: string | string[]
-  fileTypes?: string[]
+  fileTypes?: {
+    include?: string[]
+    exclude?: string[]
+  }
   filters?: Record<string, FilterValue>
   rowLimit?: number
   startRow?: number
   mapping?: Record<string, string>
   selectFields?: string[]
+  /**
+   * Filter search results by type.
+   * - 'items': Returns files and list items (excludes folders).
+   * - 'folders': Returns only folders.
+   * - 'all': Returns everything (default).
+   */
+  resultType?: 'items' | 'folders' | 'all'
+  /**
+   * If true, includes a 'relativePath' field in the returned items.
+   * Calculated from the 'Path' managed property.
+   */
+  includeRelativePath?: boolean
 }
 
 export interface SearchResult<T> {
@@ -225,4 +240,8 @@ export interface SharePointConfig {
    * Search results are usually not cached to ensure freshness.
    */
   enableCache?: boolean
+  /**
+   * If true, enables verbose logging to the console for debugging purposes.
+   */
+  debug?: boolean
 }

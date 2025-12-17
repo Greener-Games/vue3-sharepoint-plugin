@@ -13,6 +13,8 @@ import {
   ListInfo,
   AttachmentInfo,
 } from '../types'
+import { getServerRelativePath } from '../utils/urlUtils'
+import { Logger } from '../utils/debug'
 
 // Internal Type (Fixes your error)
 interface InternalBatchItem {
@@ -62,6 +64,7 @@ export class RestSharePointClient implements ISharePointClient {
   private baseUrl: string
   private authProvider?: () => Promise<Record<string, string>>
   private cache: InternalCache
+  private logger: Logger
 
   // Digest Caching (Memory only)
   private digestCache: string | null = null
@@ -71,6 +74,7 @@ export class RestSharePointClient implements ISharePointClient {
     this.baseUrl = options.baseUrl.replace(/\/$/, '')
     this.authProvider = options.authProvider
     this.cache = new InternalCache(options.enableCache ?? true)
+    this.logger = new Logger(options.debug)
   }
 
   // --- Centralized Request Handler ---
@@ -110,10 +114,13 @@ export class RestSharePointClient implements ISharePointClient {
       fetchOptions.body = isBinary || typeof body === 'string' ? body : JSON.stringify(body)
     }
 
+    this.logger.log(`Request: ${method} ${fullUrl}`, body ? { body } : '')
+
     const response = await fetch(fullUrl, fetchOptions)
 
     if (!response.ok) {
       const errorText = await response.text()
+      this.logger.error(`Request Failed: ${response.status} ${response.statusText}`, errorText)
       throw new Error(
         `SharePoint Request Failed: ${method} ${endpoint} - ${response.status} ${response.statusText}\n${errorText}`
       )
@@ -125,6 +132,7 @@ export class RestSharePointClient implements ISharePointClient {
     }
 
     const data = await response.json()
+    this.logger.log(`Response: ${response.status}`, data)
 
     if (options.skipMetadata) {
       return data as T
@@ -178,6 +186,7 @@ export class RestSharePointClient implements ISharePointClient {
 
     builder(proxy) // Fill Queue
     if (queue.length === 0) return
+    this.logger.log(`Executing Batch with ${queue.length} items`)
     await this.processInternalBatch(queue)
   }
 
@@ -224,6 +233,8 @@ export class RestSharePointClient implements ISharePointClient {
   // --- Search ---
   async search<T = any>(opts: SearchRequestOptions): Promise<SearchResult<T>> {
     const kql = this.buildKql(opts)
+    this.logger.log(`Search KQL: ${kql}`)
+
     const select = opts.selectFields || [
       'Title',
       'Path',
@@ -255,10 +266,20 @@ export class RestSharePointClient implements ISharePointClient {
     const items = rows.map((r: any) => {
       const map: any = {}
       r.Cells.results.forEach((c: any) => (map[c.Key] = c.Value))
+
+      if (opts.includeRelativePath && map.Path) {
+        try {
+          map.relativePath = decodeURIComponent(new URL(map.Path).pathname)
+        } catch {
+          map.relativePath = map.Path
+        }
+      }
+
       if (opts.mapping) {
         const out: any = {}
         Object.entries(opts.mapping).forEach(([k, v]) => (out[v] = map[k]))
         if (!out.url) out.url = map.Path
+        if (opts.includeRelativePath) out.relativePath = map.relativePath
         return out
       }
       return map
@@ -326,14 +347,45 @@ export class RestSharePointClient implements ISharePointClient {
         opts.searchTitleOnly ? `Title:"${txt.replace(/"/g, '""')}*"` : txt
       )
     else parts.push('*')
-    if (opts.fileTypes?.length)
+    if (opts.fileTypes?.include?.length) {
       parts.push(
-        `(${opts.fileTypes.map((e) => `FileExtension:${e}`).join(' OR ')})`
+        `(${opts.fileTypes.include.map((e) => `FileExtension:${e}`).join(' OR ')})`
       )
+    }
+    if (opts.fileTypes?.exclude?.length) {
+      parts.push(
+        `(${opts.fileTypes.exclude.map((e) => `NOT FileExtension:${e}`).join(' AND ')})`
+      )
+    }
     if (opts.scope) {
       const scopes = Array.isArray(opts.scope) ? opts.scope : [opts.scope]
-      parts.push(`(${scopes.map((s) => `Path:"${s}*"`).join(' OR ')})`)
+      let origin = ''
+      try {
+        origin = new URL(this.baseUrl).origin
+      } catch {
+        /* ignore */
+      }
+      const normalizedScopes = scopes.map((s) => {
+        const safeS = String(s || '')
+        if (safeS.toLowerCase().startsWith('http')) return `Path:"${safeS}*"`
+        if (safeS.startsWith('/')) {
+          // Server Relative
+          return `Path:"${origin}${safeS}*"`
+        }
+        // Site Relative
+        return `Path:"${this.baseUrl}/${safeS}*"`
+      })
+      parts.push(`(${normalizedScopes.join(' OR ')})`)
     }
+
+    if (opts.resultType === 'items') {
+      // Exclude Folders (0x0120 is Folder ContentType)
+      parts.push(`(NOT ContentTypeId:0x0120*)`)
+    } else if (opts.resultType === 'folders') {
+      // Only Folders
+      parts.push(`ContentTypeId:0x0120*`)
+    }
+
     if (opts.filters) {
       for (const [key, value] of Object.entries(opts.filters)) {
         if (!value || (Array.isArray(value) && value.length === 0)) continue
@@ -442,8 +494,9 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async uploadFile(url: string, name: string, file: any) {
+    const fullUrl = getServerRelativePath(url, this.baseUrl)
     const data = await this.request<any>(
-      `/_api/web/getfolderbyserverrelativeurl('${url}')/files/add(url='${name}', overwrite=true)`,
+      `/_api/web/getfolderbyserverrelativeurl('${fullUrl}')/files/add(url='${name}', overwrite=true)`,
       {
         method: 'POST',
         body: file,
@@ -457,21 +510,23 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async downloadFile(url: string) {
+    const fullUrl = getServerRelativePath(url, this.baseUrl)
     // We can't use centralized request for Blob return nicely without generic complexity or flag
     // So sticking to native fetch for blob download, but using helper for headers could be good.
     // However, downloadFile logic is simple enough.
     const headers = await this.getHeaders(false)
     const res = await fetch(
-      `${this.baseUrl}/_api/web/getfilebyserverrelativeurl('${url}')/$value`,
+      `${this.baseUrl}/_api/web/getfilebyserverrelativeurl('${fullUrl}')/$value`,
       { headers }
     )
     return await res.blob()
   }
 
   async updateFileMetadata(url: string, payload: any) {
+    const fullUrl = getServerRelativePath(url, this.baseUrl)
     // 1. Get List Item URI
     const meta = await this.request<any>(
-       `/_api/web/getfilebyserverrelativeurl('${url}')/ListItemAllFields`
+       `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/ListItemAllFields`
     )
     const uri = meta.__metadata.uri
     const type = meta.__metadata.type
@@ -489,8 +544,9 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async deleteFile(url: string) {
+    const fullUrl = getServerRelativePath(url, this.baseUrl)
     await this.request(
-      `/_api/web/getfilebyserverrelativeurl('${url}')`,
+      `/_api/web/getfilebyserverrelativeurl('${fullUrl}')`,
       {
         method: 'POST',
         headers: {
@@ -503,13 +559,14 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async createFolder(url: string) {
+    const fullUrl = getServerRelativePath(url, this.baseUrl)
     await this.request(
       `/_api/web/folders`,
       {
         method: 'POST',
         body: {
           __metadata: { type: 'SP.Folder' },
-          ServerRelativeUrl: url,
+          ServerRelativeUrl: fullUrl,
         },
         isWrite: true
       }
@@ -743,8 +800,9 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async getFileVersions(url: string): Promise<FileVersion[]> {
+    const fullUrl = getServerRelativePath(url, this.baseUrl)
     // We expand CreatedBy to get the user name
-    const endpoint = `/_api/web/getfilebyserverrelativeurl('${url}')/versions?$expand=CreatedBy`
+    const endpoint = `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/versions?$expand=CreatedBy`
 
     const results = await this.request<any[]>(endpoint)
 

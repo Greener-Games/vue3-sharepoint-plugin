@@ -89,12 +89,14 @@ const client = new MockSharePointClient(customMock)
 These utilities help generate data for the `MockSharePointClient`.
 
 **`createMockData(docCount, baseUrl)`**
+
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `docCount` | `number` | `60` | Number of documents to generate. |
 | `baseUrl` | `string` | `'/sites/Intranet'` | The base URL for the simulated site. |
 
 **`createMockUser(id, name, email)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `id` | `number` | Unique ID for the user. |
@@ -123,7 +125,13 @@ const handleSearch = () => {
   searchCtx.execute({
     query: 'Engineering', 
     rowLimit: 10,
-    scope: '/sites/Intranet/Shared Documents', 
+    scope: 'Shared Documents', // Automatically inferred as relative to baseUrl
+    resultType: 'items', // Exclude folders
+    includeRelativePath: true, // Returns a 'relativePath' field
+    fileTypes: {
+      include: ['docx', 'pdf'],
+      exclude: ['aspx']
+    },
     filters: {
       'RefinableString01': ['UK', 'US'], // Array = OR Logic
     },
@@ -147,7 +155,10 @@ Performs a search query. This updates `searchCtx.results`.
 | `query` | `string` | No | `'*'` | The text to search for. |
 | `rowLimit` | `number` | No | `10` | Number of items to return per page. |
 | `startRow` | `number` | No | `0` | The offset index (used for pagination). |
-| `scope` | `string` \| `string[]` | No | - | Limit search to specific folder paths or site URLs. |
+| `scope` | `string` \| `string[]` | No | - | Limit search to specific paths. <br>• **Site-Relative:** `'Shared Documents'` (appended to baseUrl)<br>• **Server-Relative:** `'/sites/Other/Docs'` (appended to origin)<br>• **Absolute:** `'https://...'` |
+| `resultType` | `'items'` \| `'folders'` \| `'all'` | No | `'all'` | Filter results by type. `'items'` excludes folders. |
+| `includeRelativePath` | `boolean` | No | `false` | If true, adds `relativePath` property to results (derived from `Path`). |
+| `fileTypes` | `{ include?: string[], exclude?: string[] }` | No | - | Filter by file extension. e.g. `{ include: ['pdf'] }`. |
 | `filters` | `Record<string, any>` | No | - | Faceted filters (Array=OR, String=AND). |
 | `mapping` | `Record<string, string>` | No | - | Maps internal SharePoint Managed Properties to friendly names. |
 | `selectFields` | `string[]` | No | - | Specific fields to request from API to reduce payload size. |
@@ -172,12 +183,14 @@ await updateItem('Tasks', newItem.Id, { Status: 'Active' })
 ### 📘 List API Reference
 
 **`addItem(listTitle, payload)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `listTitle` | `string` | The display name of the list (e.g., 'Tasks'). |
 | `payload` | `Record<string, any>` | Object matching list columns (e.g., `{ Title: 'A' }`). |
 
 **`updateItem(listTitle, id, payload)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `listTitle` | `string` | The display name of the list. |
@@ -185,12 +198,14 @@ await updateItem('Tasks', newItem.Id, { Status: 'Active' })
 | `payload` | `Record<string, any>` | The fields to change (Merge update). |
 
 **`deleteItem(listTitle, id)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `listTitle` | `string` | The display name of the list. |
 | `id` | `number` | The integer ID of the item to recycle. |
 
 **`getItem(listTitle, id, select?)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `listTitle` | `string` | The display name of the list. |
@@ -213,33 +228,42 @@ await upload('/sites/Dev/Docs', 'report.pdf', fileBlob)
 
 ### 📘 Files API Reference
 
+Paths can be either:
+*   **Site-Relative:** `'Shared Documents'` (automatically prepends `baseUrl`)
+*   **Server-Relative:** `'/sites/Intranet/Shared Documents'`
+
 **`upload(serverRelativeUrl, fileName, file)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `serverRelativeUrl` | `string` | The target folder path. |
+| `serverRelativeUrl` | `string` | The target folder path (e.g. `'Shared Documents'`). |
 | `fileName` | `string` | The name of the file (e.g., `report.pdf`). |
 | `file` | `Blob` \| `ArrayBuffer` | The file content. |
 
 **`createFolder(serverRelativeUrl)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `serverRelativeUrl` | `string` | The full path where the folder should be created. |
+| `serverRelativeUrl` | `string` | The path where the folder should be created. |
 
 **`updateFileMetadata(serverRelativeUrl, payload)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `serverRelativeUrl` | `string` | The full path to the file. |
+| `serverRelativeUrl` | `string` | The path to the file. |
 | `payload` | `Record<string, any>` | Key-value pairs of metadata to update. |
 
 **`getVersions(serverRelativeUrl)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `serverRelativeUrl` | `string` | The full path to the file. |
+| `serverRelativeUrl` | `string` | The path to the file. |
 
 **`downloadAndSave(serverRelativeUrl, fileName)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| `serverRelativeUrl` | `string` | The full path to the file. |
+| `serverRelativeUrl` | `string` | The path to the file. |
 | `fileName` | `string` | The name the file will be saved as. |
 
 ---
@@ -265,16 +289,19 @@ Returns all users from the User Information List of the site.
 *   **Returns:** `Promise<UserInfo[]>`
 
 **`getUserGroups(email?)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `email` | `string` | (Optional) Email of the user. Defaults to current user if omitted. |
 
 **`getPermissions(email?)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `email` | `string` | (Optional) Email of the user. Defaults to current user if omitted. |
 
 **`hasPermission(permissions, kind)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `permissions` | `SPBasePermissions` | The object returned from `getPermissions()`. |
@@ -299,6 +326,7 @@ await executeBatch((batch) => {
 ### 📘 Batch API Reference
 
 **`executeBatch(callback)`**
+
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `callback` | `(batch: IBatch) => void` | A function that receives a `batch` builder. |
@@ -334,4 +362,3 @@ Returns the current logged-in user. Caches the result to avoid repeated API call
 | :--- | :--- | :--- |
 | `listTitle` | `string` | The display name of the list. |
 | `fieldName` | `string` | The internal name or title of the choice column. |
-```
