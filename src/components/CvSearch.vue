@@ -445,7 +445,7 @@
 
     await searchCtx.execute({
       query: executedQuery.value,
-      scope: ['/sites/ProposalExpertiseHubUAT/V2/Shared Documents'],
+      scope: ['/sites/TestSite/Shared Documents'],
       rowLimit: 10,
       startRow: 0, // Reset to Page 1
       mapping: {

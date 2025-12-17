@@ -9,17 +9,17 @@ export const app = createApp(App)
 const isDev = import.meta.env.DEV
 let client
 if (isDev) {
-    const mockData = createMockData(100, '/sites/ProposalExpertiseHubUAT/V2')
+    const mockData = createMockData(100, '/sites/TestSite')
     console.log('🚧 Running with Mock Data', mockData)
     client = new MockSharePointClient(mockData)
 } else {
 /*    client = new PnPSharePointClient({
-        baseUrl: 'https://atkins.sharepoint.com/sites/ProposalExpertiseHubUAT/V2',
+        baseUrl: 'https://atkins.sharepoint.com/sites/TestSite',
         enableCache: true,
     })*/
         client = new RestSharePointClient({
           // Make sure this matches your site URL exactly
-          baseUrl: 'https://atkins.sharepoint.com/sites/ProposalExpertiseHubUAT/V2',
+          baseUrl: 'https://atkins.sharepoint.com/sites/TestSite',
           enableCache: true
         })
 }

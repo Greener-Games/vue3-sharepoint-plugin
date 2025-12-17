@@ -165,7 +165,7 @@ interface FileRow {
 
 // --- Config ---
 // Hardcoded path based on your previous snippet, since the UI no longer has an input for it
-const TARGET_FOLDER = '/sites/ProposalExpertiseHubUAT/V2/Shared Documents'
+const TARGET_FOLDER = '/sites/TestSite/Shared Documents'
 
 // --- State ---
 const { upload, updateFileMetadata } = useSharePoint()
