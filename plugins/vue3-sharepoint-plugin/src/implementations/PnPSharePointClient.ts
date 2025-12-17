@@ -28,6 +28,7 @@ import '@pnp/sp/site-users/web'
 import '@pnp/sp/site-groups/web'
 import '@pnp/sp/batching'
 import '@pnp/sp/attachments'
+import '@pnp/sp/search'
 
 export class PnPSharePointClient implements ISharePointClient {
   private sp: SPFI
