@@ -9,6 +9,9 @@ import {
   SiteGroup,
   SPBasePermissions,
   UserInfo,
+  WebInfo,
+  ListInfo,
+  AttachmentInfo,
 } from '../types'
 
 export interface MockData {
@@ -42,10 +45,30 @@ export interface MockData {
   userGroups?: Record<string, SiteGroup[]>
 
   /**
+   * All Groups in the "Site"
+   */
+  siteGroups?: SiteGroup[]
+
+  /**
    * Version History for files.
    * Key: File ServerRelativeUrl, Value: Array of Versions
    */
   fileVersions?: Record<string, FileVersion[]>
+
+  /**
+   * Web Info
+   */
+  webInfo?: WebInfo
+
+  /**
+   * Subwebs
+   */
+  subwebs?: WebInfo[]
+
+  /**
+   * List Info
+   */
+  listsInfo?: ListInfo[]
 }
 
 export class MockSharePointClient implements ISharePointClient {
@@ -59,12 +82,21 @@ export class MockSharePointClient implements ISharePointClient {
       userGroups: {},
       fileVersions: {},
       siteUsers: [],
+      siteGroups: [],
+      subwebs: [],
+      listsInfo: [],
       delay: 500,
       currentUser: {
         Id: 1,
         Title: 'Mock User',
         Email: 'mock@local',
         LoginName: 'i:0#.f|mock',
+      },
+      webInfo: {
+        Id: 'mock-web-id',
+        Title: 'Mock Web',
+        Url: '/sites/mock',
+        Description: 'This is a mock web'
       },
       ...data,
     }
@@ -75,7 +107,6 @@ export class MockSharePointClient implements ISharePointClient {
   }
 
   // --- 1. SEARCH ---
-// --- 1. SEARCH ---
   async search<T = any>(opts: SearchRequestOptions): Promise<SearchResult<T>> {
     await this.wait()
     console.log('[Mock] Search Options:', opts)
@@ -196,19 +227,66 @@ export class MockSharePointClient implements ISharePointClient {
       (u) => u.LoginName === loginName || u.Email === loginName
     )
     if (user) return user
-    // Simulate creating if not found
-    return {
-      Id: 999,
+
+    // Create new mock user
+    const newUser = {
+      Id: Math.floor(Math.random() * 10000),
       Title: 'Ensured User',
       Email: loginName,
       LoginName: loginName,
     }
+    this.data.siteUsers?.push(newUser)
+    return newUser
   }
 
   async getUserGroups(email?: string): Promise<SiteGroup[]> {
     await this.wait()
     const targetEmail = email || this.data.currentUser!.Email
     return this.data.userGroups?.[targetEmail] || []
+  }
+
+  async addUserToGroup(groupName: string, loginName: string): Promise<void> {
+    await this.wait()
+    // Find or create user
+    const user = await this.ensureUser(loginName)
+
+    // Find Group
+    let group = this.data.siteGroups?.find(g => g.Title === groupName)
+    if (!group) {
+      // Mock creating group if not exists in site groups for simplicity
+      group = { Id: Math.floor(Math.random() * 1000), Title: groupName }
+      this.data.siteGroups?.push(group)
+    }
+
+    // Add to userGroups map
+    if (!this.data.userGroups![user.Email]) {
+      this.data.userGroups![user.Email] = []
+    }
+    if (!this.data.userGroups![user.Email].find(g => g.Title === groupName)) {
+      this.data.userGroups![user.Email].push(group)
+    }
+    console.log(`[Mock] Added ${loginName} to group ${groupName}`)
+  }
+
+  async removeUserFromGroup(groupName: string, loginName: string): Promise<void> {
+    await this.wait()
+    // Find user (by email approx)
+    const user = this.data.siteUsers?.find(u => u.LoginName === loginName || u.Email === loginName)
+    if (!user) return
+
+    const groups = this.data.userGroups![user.Email]
+    if (groups) {
+      this.data.userGroups![user.Email] = groups.filter(g => g.Title !== groupName)
+    }
+    console.log(`[Mock] Removed ${loginName} from group ${groupName}`)
+  }
+
+  async createGroup(groupName: string, description?: string): Promise<SiteGroup> {
+    await this.wait()
+    const newGroup = { Id: Math.floor(Math.random() * 1000), Title: groupName, Description: description }
+    this.data.siteGroups?.push(newGroup)
+    console.log(`[Mock] Created group ${groupName}`)
+    return newGroup
   }
 
   async getUserEffectivePermissions(
@@ -239,7 +317,7 @@ export class MockSharePointClient implements ISharePointClient {
     return this.data.fileVersions?.[url] || []
   }
 
-  async getVersionHistoryLink(url: string): Promise<string> {
+  getVersionHistoryLink(url: string): string {
     return `#mock-history/${url}`
   }
 
@@ -275,9 +353,14 @@ export class MockSharePointClient implements ISharePointClient {
   }
   async updateListItem(list: string, id: number, payload: any) {
     console.log(`[Mock] Update ${list} #${id}`, payload)
+    const item = this.data.lists![list]?.find(i => i.Id === id)
+    if (item) Object.assign(item, payload)
   }
   async deleteListItem(list: string, id: number) {
     console.log(`[Mock] Delete ${list} #${id}`)
+    if (this.data.lists![list]) {
+      this.data.lists![list] = this.data.lists![list].filter(i => i.Id !== id)
+    }
   }
   async getListItemById(list: string, id: number) {
     return this.data.lists![list]?.find((i) => i.Id === id)
@@ -299,5 +382,84 @@ export class MockSharePointClient implements ISharePointClient {
   }
   async getFieldChoices() {
     return []
+  }
+
+  // --- 5. WEBS & LISTS ---
+  async getWebInfo(): Promise<WebInfo> {
+    await this.wait()
+    return this.data.webInfo!
+  }
+
+  async getSubwebs(): Promise<WebInfo[]> {
+    await this.wait()
+    return this.data.subwebs || []
+  }
+
+  async getLists(): Promise<ListInfo[]> {
+    await this.wait()
+
+    // 1. Get explicitly defined listsInfo
+    const explicitInfos = this.data.listsInfo || []
+
+    // 2. Get lists that exist in data.lists but NOT in explicit listsInfo
+    const knownTitles = new Set(explicitInfos.map(l => l.Title))
+    const derivedInfos = Object.keys(this.data.lists || {})
+      .filter(k => !knownTitles.has(k))
+      .map((k, i) => ({
+        Id: `mock-list-${i}`,
+        Title: k,
+        Description: 'Mock List',
+        ItemCount: this.data.lists![k].length,
+        Hidden: false,
+        ImageUrl: ''
+      }))
+
+    return [...explicitInfos, ...derivedInfos]
+  }
+
+  async getList(listTitle: string): Promise<ListInfo> {
+    await this.wait()
+    const lists = await this.getLists()
+    const found = lists.find(l => l.Title === listTitle)
+    if (!found) throw new Error(`List ${listTitle} not found`)
+    return found
+  }
+
+  async createList(title: string, description?: string, template?: number): Promise<ListInfo> {
+    await this.wait()
+    this.data.lists![title] = []
+    const info = {
+      Id: `mock-list-${Date.now()}`,
+      Title: title,
+      Description: description || '',
+      ItemCount: 0,
+      Hidden: false,
+      ImageUrl: ''
+    }
+    if (!this.data.listsInfo) this.data.listsInfo = []
+    this.data.listsInfo.push(info)
+    return info
+  }
+
+  async deleteList(title: string): Promise<void> {
+    await this.wait()
+    delete this.data.lists![title]
+    if (this.data.listsInfo) {
+      this.data.listsInfo = this.data.listsInfo.filter(l => l.Title !== title)
+    }
+  }
+
+  // --- 6. ATTACHMENTS ---
+  async getItemAttachments(listTitle: string, itemId: number): Promise<AttachmentInfo[]> {
+    // Mock implementation: return empty or fake attachments
+    return []
+  }
+
+  async addAttachment(listTitle: string, itemId: number, fileName: string, file: Blob | ArrayBuffer): Promise<void> {
+    console.log(`[Mock] Added attachment ${fileName} to ${listTitle} item ${itemId}`)
+  }
+
+  async deleteAttachment(listTitle: string, itemId: number, fileName: string): Promise<void> {
+     console.log(`[Mock] Deleted attachment ${fileName} from ${listTitle} item ${itemId}`)
   }
 }

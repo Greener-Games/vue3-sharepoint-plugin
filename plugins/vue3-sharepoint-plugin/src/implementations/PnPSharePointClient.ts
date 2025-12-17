@@ -9,6 +9,9 @@ import {
   UserInfo,
   FieldDefinition,
   FileVersion,
+  WebInfo,
+  ListInfo,
+  AttachmentInfo,
 } from '../types'
 import { spfi, SPFI } from '@pnp/sp'
 import { LogLevel, PnPLogging } from '@pnp/logging'
@@ -20,7 +23,9 @@ import '@pnp/sp/files'
 import '@pnp/sp/folders'
 import '@pnp/sp/fields'
 import '@pnp/sp/site-users/web'
+import '@pnp/sp/site-groups/web'
 import '@pnp/sp/batching'
+import '@pnp/sp/attachments'
 
 export class PnPSharePointClient implements ISharePointClient {
   private sp: SPFI
@@ -36,7 +41,7 @@ export class PnPSharePointClient implements ISharePointClient {
     this.enableCache = !!options.enableCache
 
     // 1. Initialize PnPjs with Warning logging to prevent hangs
-    this.sp = spfi(options.baseUrl).using(PnPLogging(LogLevel.Warning))
+    this.sp = spfi(options.baseUrl).using(PnPLogging(2)) // 2 = LogLevel.Warning
 
     // 2. Enable PnPjs Caching for Standard CRUD (if enabled)
     // Note: Search uses its own manual cache below
@@ -196,7 +201,7 @@ export class PnPSharePointClient implements ISharePointClient {
   }
 
   // --------------------------------------------------------------------------
-  // 3. LIST ITEMS
+  // 3. LIST ITEMS & ATTACHMENTS
   // --------------------------------------------------------------------------
 
   async createListItem<T = any>(
@@ -232,6 +237,22 @@ export class PnPSharePointClient implements ISharePointClient {
       q = q.select(...select)
     }
     return (await q()) as T
+  }
+
+  async getItemAttachments(listTitle: string, itemId: number): Promise<AttachmentInfo[]> {
+    const attachments = await this.sp.web.lists.getByTitle(listTitle).items.getById(itemId).attachmentFiles()
+    return attachments.map(a => ({
+      FileName: a.FileName,
+      ServerRelativeUrl: a.ServerRelativeUrl
+    }))
+  }
+
+  async addAttachment(listTitle: string, itemId: number, fileName: string, file: Blob | ArrayBuffer): Promise<void> {
+    await this.sp.web.lists.getByTitle(listTitle).items.getById(itemId).attachmentFiles.add(fileName, file)
+  }
+
+  async deleteAttachment(listTitle: string, itemId: number, fileName: string): Promise<void> {
+    await this.sp.web.lists.getByTitle(listTitle).items.getById(itemId).attachmentFiles.getByName(fileName).delete()
   }
 
   // --------------------------------------------------------------------------
@@ -277,7 +298,72 @@ export class PnPSharePointClient implements ISharePointClient {
   }
 
   // --------------------------------------------------------------------------
-  // 5. USERS & GROUPS
+  // 5. WEBS & LISTS (STRUCTURE)
+  // --------------------------------------------------------------------------
+
+  async getWebInfo(): Promise<WebInfo> {
+    const w = await this.sp.web()
+    return {
+      Id: w.Id,
+      Title: w.Title,
+      Url: w.Url,
+      Description: w.Description
+    }
+  }
+
+  async getSubwebs(): Promise<WebInfo[]> {
+    const webs = await this.sp.web.webs()
+    return webs.map(w => ({
+      Id: w.Id,
+      Title: w.Title,
+      Url: w.Url,
+      Description: w.Description
+    }))
+  }
+
+  async getLists(): Promise<ListInfo[]> {
+    const lists = await this.sp.web.lists()
+    return lists.map(l => ({
+      Id: l.Id,
+      Title: l.Title,
+      Description: l.Description,
+      ItemCount: l.ItemCount,
+      Hidden: l.Hidden,
+      ImageUrl: l.ImageUrl
+    }))
+  }
+
+  async getList(listTitle: string): Promise<ListInfo> {
+    const l = await this.sp.web.lists.getByTitle(listTitle)()
+    return {
+      Id: l.Id,
+      Title: l.Title,
+      Description: l.Description,
+      ItemCount: l.ItemCount,
+      Hidden: l.Hidden,
+      ImageUrl: l.ImageUrl
+    }
+  }
+
+  async createList(title: string, description?: string, template = 100): Promise<ListInfo> {
+    const r = await this.sp.web.lists.add(title, description, template)
+    const l = r.data
+    return {
+      Id: l.Id,
+      Title: l.Title,
+      Description: l.Description,
+      ItemCount: l.ItemCount,
+      Hidden: l.Hidden,
+      ImageUrl: l.ImageUrl
+    }
+  }
+
+  async deleteList(title: string): Promise<void> {
+    await this.sp.web.lists.getByTitle(title).delete()
+  }
+
+  // --------------------------------------------------------------------------
+  // 6. USERS & GROUPS
   // --------------------------------------------------------------------------
 
   async getCurrentUser(): Promise<UserInfo> {
@@ -288,11 +374,32 @@ export class PnPSharePointClient implements ISharePointClient {
     return await this.sp.web.siteUsers()
   }
 
+  async ensureUser(loginName: string): Promise<UserInfo> {
+    const result = await this.sp.web.ensureUser(loginName)
+    return result.data
+  }
+
   async getUserGroups(email?: string): Promise<SiteGroup[]> {
     if (email) {
       return await this.sp.web.siteUsers.getByEmail(email).groups()
     }
     return await this.sp.web.currentUser.groups()
+  }
+
+  async addUserToGroup(groupName: string, loginName: string): Promise<void> {
+    const user = await this.sp.web.ensureUser(loginName)
+    await this.sp.web.siteGroups.getByName(groupName).users.add(user.data.LoginName)
+  }
+
+  async removeUserFromGroup(groupName: string, loginName: string): Promise<void> {
+     // We need User ID to remove from group in some versions, but LoginName usually works if using proper method.
+     // PnPjs 'removeByLoginName' exists on users collection
+     await this.sp.web.siteGroups.getByName(groupName).users.removeByLoginName(loginName)
+  }
+
+  async createGroup(groupName: string, description?: string): Promise<SiteGroup> {
+    const r = await this.sp.web.siteGroups.add({ Title: groupName, Description: description })
+    return r.data
   }
 
   async getUserEffectivePermissions(
@@ -307,7 +414,7 @@ export class PnPSharePointClient implements ISharePointClient {
   }
 
   // --------------------------------------------------------------------------
-  // 6. FIELDS & METADATA
+  // 7. FIELDS & METADATA
   // --------------------------------------------------------------------------
 
   async getListFields(listTitle: string): Promise<FieldDefinition[]> {
@@ -335,7 +442,7 @@ export class PnPSharePointClient implements ISharePointClient {
   }
 
   // --------------------------------------------------------------------------
-  // 7. VERSION HISTORY
+  // 8. VERSION HISTORY
   // --------------------------------------------------------------------------
 
   async getFileVersions(serverRelativeUrl: string): Promise<FileVersion[]> {

@@ -87,22 +87,48 @@ export function useSharePoint() {
 
     // Proxy Methods
     executeBatch: client.executeBatch.bind(client),
+
+    // Items
     addItem: client.createListItem.bind(client),
     updateItem: client.updateListItem.bind(client),
     deleteItem: client.deleteListItem.bind(client),
     getItem: client.getListItemById.bind(client),
 
+    // Attachments
+    getAttachments: client.getItemAttachments.bind(client),
+    addAttachment: client.addAttachment.bind(client),
+    deleteAttachment: client.deleteAttachment.bind(client),
+
+    // Files/Folders
     upload: client.uploadFile.bind(client),
     createFolder: client.createFolder.bind(client),
     updateFileMetadata: client.updateFileMetadata.bind(client),
+    deleteFile: client.deleteFile.bind(client),
 
+    // Webs
+    getWebInfo: client.getWebInfo.bind(client),
+    getSubwebs: client.getSubwebs.bind(client),
+
+    // Lists
+    getLists: client.getLists.bind(client),
+    getList: client.getList.bind(client),
+    createList: client.createList.bind(client),
+    deleteList: client.deleteList.bind(client),
+
+    // Fields
     getFields: client.getListFields.bind(client),
     getChoices: client.getFieldChoices.bind(client),
 
+    // Users & Groups
     getSiteUsers: client.getSiteUsers.bind(client),
+    ensureUser: client.ensureUser.bind(client),
     getUserGroups: client.getUserGroups.bind(client),
+    addUserToGroup: client.addUserToGroup.bind(client),
+    removeUserFromGroup: client.removeUserFromGroup.bind(client),
+    createGroup: client.createGroup.bind(client),
     getPermissions: client.getUserEffectivePermissions.bind(client),
 
+    // Version History
     getVersions: client.getFileVersions.bind(client),
     historyLink: client.getVersionHistoryLink.bind(client),
 
