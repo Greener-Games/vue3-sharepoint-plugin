@@ -123,7 +123,13 @@ const handleSearch = () => {
   searchCtx.execute({
     query: 'Engineering', 
     rowLimit: 10,
-    scope: '/sites/Intranet/Shared Documents', 
+    scope: 'Shared Documents', // Automatically inferred as relative to baseUrl
+    resultType: 'items', // Exclude folders
+    includeRelativePath: true, // Returns a 'relativePath' field
+    fileTypes: {
+      include: ['docx', 'pdf'],
+      exclude: ['aspx']
+    },
     filters: {
       'RefinableString01': ['UK', 'US'], // Array = OR Logic
     },
@@ -147,7 +153,10 @@ Performs a search query. This updates `searchCtx.results`.
 | `query` | `string` | No | `'*'` | The text to search for. |
 | `rowLimit` | `number` | No | `10` | Number of items to return per page. |
 | `startRow` | `number` | No | `0` | The offset index (used for pagination). |
-| `scope` | `string` \| `string[]` | No | - | Limit search to specific folder paths or site URLs. |
+| `scope` | `string` \| `string[]` | No | - | Limit search to specific paths. <br>• **Site-Relative:** `'Shared Documents'` (appended to baseUrl)<br>• **Server-Relative:** `'/sites/Other/Docs'` (appended to origin)<br>• **Absolute:** `'https://...'` |
+| `resultType` | `'items'` \| `'folders'` \| `'all'` | No | `'all'` | Filter results by type. `'items'` excludes folders. |
+| `includeRelativePath` | `boolean` | No | `false` | If true, adds `relativePath` property to results (derived from `Path`). |
+| `fileTypes` | `{ include?: string[], exclude?: string[] }` | No | - | Filter by file extension. e.g. `{ include: ['pdf'] }`. |
 | `filters` | `Record<string, any>` | No | - | Faceted filters (Array=OR, String=AND). |
 | `mapping` | `Record<string, string>` | No | - | Maps internal SharePoint Managed Properties to friendly names. |
 | `selectFields` | `string[]` | No | - | Specific fields to request from API to reduce payload size. |
@@ -334,4 +343,3 @@ Returns the current logged-in user. Caches the result to avoid repeated API call
 | :--- | :--- | :--- |
 | `listTitle` | `string` | The display name of the list. |
 | `fieldName` | `string` | The internal name or title of the choice column. |
-```
