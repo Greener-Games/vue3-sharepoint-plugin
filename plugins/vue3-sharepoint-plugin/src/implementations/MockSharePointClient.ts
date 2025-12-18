@@ -216,11 +216,19 @@ export class MockSharePointClient implements ISharePointClient {
           if(found) dataKey = found
         }
 
-        allItems = allItems.filter(item => {
+        allItems = allItems.filter((item) => {
           const itemVal = item[dataKey]
           if (!itemVal) return false
-          if (Array.isArray(value)) return value.some(v => String(v) === String(itemVal))
-          return String(itemVal) === String(value)
+
+          const normalizedItemVal = String(itemVal).toLowerCase()
+
+          if (Array.isArray(value)) {
+            return value.some((v) =>
+              normalizedItemVal.includes(String(v).toLowerCase())
+            )
+          }
+
+          return normalizedItemVal.includes(String(value).toLowerCase())
         })
       })
     }
