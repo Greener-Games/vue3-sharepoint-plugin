@@ -166,15 +166,20 @@ export class MockSharePointClient implements ISharePointClient {
     const qRaw = opts.query || ''
     if (qRaw && qRaw !== '*') {
       const q = qRaw.toLowerCase()
-      allItems = allItems.filter(item => {
+      allItems = allItems.filter((item) => {
         const titleMatch = item.Title?.toLowerCase().includes(q)
-        let summaryMatch = false
-        if (item.HitHighlightedSummary?.toLowerCase().includes(q)) {
-          summaryMatch = true
-          const regex = new RegExp(`(${q})`, 'gi')
-          item.HitHighlightedSummary = item.HitHighlightedSummary.replace(regex, '<c0>$1</c0>')
-        }
-        return titleMatch || summaryMatch
+        // In SP, Filename is often FileLeafRef or derived from Path
+        const filenameMatch = (item.FileLeafRef || item.Name || '')
+          .toLowerCase()
+          .includes(q)
+        const pathMatch = (item.Path || item.url || '')
+          .toLowerCase()
+          .includes(q)
+
+        const summaryMatch =
+          item.HitHighlightedSummary?.toLowerCase().includes(q)
+
+        return titleMatch || filenameMatch || pathMatch || summaryMatch
       })
     }
 
@@ -212,8 +217,10 @@ export class MockSharePointClient implements ISharePointClient {
 
         let dataKey = key
         if (opts.mapping) {
-          const found = Object.keys(opts.mapping).find(k => opts.mapping![k] === key)
-          if(found) dataKey = found
+          const found = Object.keys(opts.mapping).find(
+            (k) => opts.mapping![k] === key
+          )
+          if (found) dataKey = found
         }
 
         allItems = allItems.filter((item) => {

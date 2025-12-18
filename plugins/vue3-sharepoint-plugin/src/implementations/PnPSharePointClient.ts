@@ -518,9 +518,13 @@ export class PnPSharePointClient implements ISharePointClient {
     // 1. Query Text
     const txt = opts.query?.trim() || '*'
     if (txt !== '*') {
-      if (opts.searchTitleOnly)
-        parts.push(`Title:"${txt.replace(/"/g, '""')}*"`)
-      else parts.push(txt)
+      const escapedTxt = txt.replace(/"/g, '""')
+      if (opts.searchTitleOnly) {
+        parts.push(`Title:"${escapedTxt}*"`)
+      } else {
+        // Search in Title OR Filename with wildcards for partial matches
+        parts.push(`(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*")`)
+      }
     } else {
       parts.push('*')
     }

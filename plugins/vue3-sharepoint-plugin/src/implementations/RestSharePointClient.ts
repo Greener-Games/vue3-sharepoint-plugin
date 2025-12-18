@@ -342,11 +342,19 @@ export class RestSharePointClient implements ISharePointClient {
   private buildKql(opts: SearchRequestOptions): string {
     const parts: string[] = []
     const txt = opts.query?.trim() || '*'
-    if (txt !== '*')
-      parts.push(
-        opts.searchTitleOnly ? `Title:"${txt.replace(/"/g, '""')}*"` : txt
-      )
-    else parts.push('*')
+
+    if (txt !== '*') {
+      const escapedTxt = txt.replace(/"/g, '""')
+      if (opts.searchTitleOnly) {
+        parts.push(`Title:"${escapedTxt}*"`)
+      } else {
+        // Search in Title OR Filename with wildcards for partial matches
+        parts.push(`(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*")`)
+      }
+    } else {
+      parts.push('*')
+    }
+
     if (opts.fileTypes?.include?.length) {
       parts.push(
         `(${opts.fileTypes.include.map((e) => `FileExtension:${e}`).join(' OR ')})`
