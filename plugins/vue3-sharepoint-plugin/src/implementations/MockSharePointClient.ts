@@ -170,14 +170,14 @@ export class MockSharePointClient implements ISharePointClient {
         const titleMatch = item.Title?.toLowerCase().includes(q)
         // In SP, Filename is often FileLeafRef or derived from Path
         const filenameMatch = (item.FileLeafRef || item.Name || '')
-          .toLowerCase()
-          .includes(q)
+            .toLowerCase()
+            .includes(q)
         const pathMatch = (item.Path || item.url || '')
-          .toLowerCase()
-          .includes(q)
+            .toLowerCase()
+            .includes(q)
 
         const summaryMatch =
-          item.HitHighlightedSummary?.toLowerCase().includes(q)
+            item.HitHighlightedSummary?.toLowerCase().includes(q)
 
         return titleMatch || filenameMatch || pathMatch || summaryMatch
       })
@@ -218,7 +218,7 @@ export class MockSharePointClient implements ISharePointClient {
         let dataKey = key
         if (opts.mapping) {
           const found = Object.keys(opts.mapping).find(
-            (k) => opts.mapping![k] === key
+              (k) => opts.mapping![k] === key
           )
           if (found) dataKey = found
         }
@@ -231,7 +231,7 @@ export class MockSharePointClient implements ISharePointClient {
 
           if (Array.isArray(value)) {
             return value.some((v) =>
-              normalizedItemVal.includes(String(v).toLowerCase())
+                normalizedItemVal.includes(String(v).toLowerCase())
             )
           }
 
@@ -285,7 +285,7 @@ export class MockSharePointClient implements ISharePointClient {
   async ensureUser(loginName: string): Promise<UserInfo> {
     await this.wait()
     const user = this.data.siteUsers?.find(
-      (u) => u.LoginName === loginName || u.Email === loginName
+        (u) => u.LoginName === loginName || u.Email === loginName
     )
     if (user) return user
 
@@ -351,7 +351,7 @@ export class MockSharePointClient implements ISharePointClient {
   }
 
   async getUserEffectivePermissions(
-    email?: string
+      email?: string
   ): Promise<SPBasePermissions> {
     await this.wait()
     const targetEmail = email || this.data.currentUser!.Email
@@ -367,7 +367,7 @@ export class MockSharePointClient implements ISharePointClient {
   async sendEmail(props: EmailProperties): Promise<void> {
     await this.wait()
     this.logger.log(
-      `📧 Sent Email to [${props.To.join(', ')}]: ${props.Subject}`
+        `📧 Sent Email to [${props.To.join(', ')}]: ${props.Subject}`
     )
   }
 
@@ -383,23 +383,23 @@ export class MockSharePointClient implements ISharePointClient {
   }
 
   async uploadFile(
-    url: string,
-    name: string,
-    file: Blob | ArrayBuffer
+      url: string,
+      name: string,
+      file: Blob | ArrayBuffer
   ): Promise<string> {
     await this.wait()
     // Normalize url if it's site relative
     let targetUrl = url
     if (!targetUrl.startsWith('/') && !targetUrl.startsWith('http')) {
-        // Mock doesn't strictly have a "base URL" context in the same way, but usually keys are full server relative.
-        // However, we passed 'webInfo.Url' in constructor default.
-        // Let's assume we prepend the webUrl if it's missing slash.
-        targetUrl = `${this.data.webInfo!.Url}/${url}`
+      // Mock doesn't strictly have a "base URL" context in the same way, but usually keys are full server relative.
+      // However, we passed 'webInfo.Url' in constructor default.
+      // Let's assume we prepend the webUrl if it's missing slash.
+      targetUrl = `${this.data.webInfo!.Url}/${url}`
     }
 
     const fullPath = `${targetUrl}/${name}`
     this.data.files![fullPath] =
-      file instanceof ArrayBuffer ? new Blob([file]) : file
+        file instanceof ArrayBuffer ? new Blob([file]) : file
     this.logger.log(`Uploaded ${fullPath}`)
     return fullPath
   }
@@ -408,7 +408,7 @@ export class MockSharePointClient implements ISharePointClient {
     await this.wait()
     let targetUrl = url
     if (!targetUrl.startsWith('/') && !targetUrl.startsWith('http')) {
-        targetUrl = `${this.data.webInfo!.Url}/${url}`
+      targetUrl = `${this.data.webInfo!.Url}/${url}`
     }
 
     const f = this.data.files![targetUrl]
@@ -479,15 +479,15 @@ export class MockSharePointClient implements ISharePointClient {
     // 2. Get lists that exist in data.lists but NOT in explicit listsInfo
     const knownTitles = new Set(explicitInfos.map(l => l.Title))
     const derivedInfos = Object.keys(this.data.lists || {})
-      .filter(k => !knownTitles.has(k))
-      .map((k, i) => ({
-        Id: `mock-list-${i}`,
-        Title: k,
-        Description: 'Mock List',
-        ItemCount: this.data.lists![k].length,
-        Hidden: false,
-        ImageUrl: ''
-      }))
+        .filter(k => !knownTitles.has(k))
+        .map((k, i) => ({
+          Id: `mock-list-${i}`,
+          Title: k,
+          Description: 'Mock List',
+          ItemCount: this.data.lists![k].length,
+          Hidden: false,
+          ImageUrl: ''
+        }))
 
     return [...explicitInfos, ...derivedInfos]
   }
@@ -535,6 +535,6 @@ export class MockSharePointClient implements ISharePointClient {
   }
 
   async deleteAttachment(listTitle: string, itemId: number, fileName: string): Promise<void> {
-     this.logger.log(`Deleted attachment ${fileName} from ${listTitle} item ${itemId}`)
+    this.logger.log(`Deleted attachment ${fileName} from ${listTitle} item ${itemId}`)
   }
 }

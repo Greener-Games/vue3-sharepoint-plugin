@@ -55,15 +55,15 @@ export class PnPSharePointClient implements ISharePointClient {
     if (this.enableCache) {
       console.log('✅ PnP: Caching Enabled (Session Storage)')
       this.sp.using(
-        Caching({
-          store: 'session',
-          keyFactory: (url) => `${url}`,
-          expireFunc: () => {
-            const expiration = new Date()
-            expiration.setMinutes(expiration.getMinutes() + 15)
-            return expiration
-          },
-        })
+          Caching({
+            store: 'session',
+            keyFactory: (url) => `${url}`,
+            expireFunc: () => {
+              const expiration = new Date()
+              expiration.setMinutes(expiration.getMinutes() + 15)
+              return expiration
+            },
+          })
       )
     }
 
@@ -75,7 +75,7 @@ export class PnPSharePointClient implements ISharePointClient {
   // --------------------------------------------------------------------------
 
   async search<T = any>(
-    options: SearchRequestOptions
+      options: SearchRequestOptions
   ): Promise<SearchResult<T>> {
     const cacheKey = this.enableCache ? this.generateSearchKey(options) : ''
 
@@ -107,13 +107,17 @@ export class PnPSharePointClient implements ISharePointClient {
         StartRow: options.startRow || 0,
         SelectProperties: select,
         TrimDuplicates: false,
+        // Explicitly requesting highlights for content
+        HitHighlightedProperties: ['Contents', 'Title'],
+        SummaryLength: 250,
+        EnableStemming: true,
         ClientType: 'ContentSearchRegular',
       })
 
       this.logger.log(`Search Results:`, searchResults)
 
       const relevantResults =
-        searchResults.PrimaryQueryResult?.RelevantResults
+          searchResults.PrimaryQueryResult?.RelevantResults
 
       if (!relevantResults) {
         return { items: [], totalHits: 0, startRow: options.startRow || 0 }
@@ -176,13 +180,13 @@ export class PnPSharePointClient implements ISharePointClient {
 
     const proxy: IBatch = {
       createListItem: (list, payload) =>
-        batchedWeb.lists.getByTitle(list).items.add(payload),
+          batchedWeb.lists.getByTitle(list).items.add(payload),
       updateListItem: (list, id, payload) =>
-        batchedWeb.lists.getByTitle(list).items.getById(id).update(payload),
+          batchedWeb.lists.getByTitle(list).items.getById(id).update(payload),
       deleteListItem: (list, id) =>
-        batchedWeb.lists.getByTitle(list).items.getById(id).recycle(),
+          batchedWeb.lists.getByTitle(list).items.getById(id).recycle(),
       deleteFile: (url) =>
-        batchedWeb.getFileByServerRelativePath(url).recycle(),
+          batchedWeb.getFileByServerRelativePath(url).recycle(),
     }
 
     builder(proxy)
@@ -195,22 +199,22 @@ export class PnPSharePointClient implements ISharePointClient {
   // --------------------------------------------------------------------------
 
   async createListItem<T = any>(
-    listTitle: string,
-    payload: Record<string, any>
+      listTitle: string,
+      payload: Record<string, any>
   ): Promise<T> {
     const r = await this.sp.web.lists.getByTitle(listTitle).items.add(payload)
     return r.data as T
   }
 
   async updateListItem(
-    listTitle: string,
-    id: number,
-    payload: Record<string, any>
+      listTitle: string,
+      id: number,
+      payload: Record<string, any>
   ): Promise<void> {
     await this.sp.web.lists
-      .getByTitle(listTitle)
-      .items.getById(id)
-      .update(payload)
+        .getByTitle(listTitle)
+        .items.getById(id)
+        .update(payload)
   }
 
   async deleteListItem(listTitle: string, id: number): Promise<void> {
@@ -218,9 +222,9 @@ export class PnPSharePointClient implements ISharePointClient {
   }
 
   async getListItemById<T = any>(
-    listTitle: string,
-    id: number,
-    select?: string[]
+      listTitle: string,
+      id: number,
+      select?: string[]
   ): Promise<T> {
     let q = this.sp.web.lists.getByTitle(listTitle).items.getById(id)
     if (select && select.length > 0) {
@@ -250,14 +254,14 @@ export class PnPSharePointClient implements ISharePointClient {
   // --------------------------------------------------------------------------
 
   async uploadFile(
-    serverRelativeUrl: string,
-    fileName: string,
-    file: Blob | ArrayBuffer
+      serverRelativeUrl: string,
+      fileName: string,
+      file: Blob | ArrayBuffer
   ): Promise<string> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     const r = await this.sp.web
-      .getFolderByServerRelativePath(fullUrl)
-      .files.addUsingPath(fileName, file, { Overwrite: true })
+        .getFolderByServerRelativePath(fullUrl)
+        .files.addUsingPath(fileName, file, { Overwrite: true })
 
     // FIX: Cast to 'any' to avoid TS2339 when TS infers return type as IFileInfo
     // Runtime returns { data: ..., file: ... }
@@ -267,18 +271,18 @@ export class PnPSharePointClient implements ISharePointClient {
   async downloadFile(serverRelativeUrl: string): Promise<Blob> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     return await this.sp.web
-      .getFileByServerRelativePath(fullUrl)
-      .getBlob()
+        .getFileByServerRelativePath(fullUrl)
+        .getBlob()
   }
 
   async updateFileMetadata(
-    serverRelativeUrl: string,
-    payload: Record<string, any>
+      serverRelativeUrl: string,
+      payload: Record<string, any>
   ): Promise<void> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     const item = await this.sp.web
-      .getFileByServerRelativePath(fullUrl)
-      .getItem()
+        .getFileByServerRelativePath(fullUrl)
+        .getItem()
     await item.update(payload)
   }
 
@@ -387,9 +391,9 @@ export class PnPSharePointClient implements ISharePointClient {
   }
 
   async removeUserFromGroup(groupName: string, loginName: string): Promise<void> {
-     // We need User ID to remove from group in some versions, but LoginName usually works if using proper method.
-     // PnPjs 'removeByLoginName' exists on users collection
-     await this.sp.web.siteGroups.getByName(groupName).users.removeByLoginName(loginName)
+    // We need User ID to remove from group in some versions, but LoginName usually works if using proper method.
+    // PnPjs 'removeByLoginName' exists on users collection
+    await this.sp.web.siteGroups.getByName(groupName).users.removeByLoginName(loginName)
   }
 
   async createGroup(groupName: string, description?: string): Promise<SiteGroup> {
@@ -398,7 +402,7 @@ export class PnPSharePointClient implements ISharePointClient {
   }
 
   async getUserEffectivePermissions(
-    email?: string
+      email?: string
   ): Promise<SPBasePermissions> {
     if (email) {
       // Resolve user first to get LoginName
@@ -414,8 +418,8 @@ export class PnPSharePointClient implements ISharePointClient {
 
   async getListFields(listTitle: string): Promise<FieldDefinition[]> {
     const r = await this.sp.web.lists
-      .getByTitle(listTitle)
-      .fields.filter('Hidden eq false')()
+        .getByTitle(listTitle)
+        .fields.filter('Hidden eq false')()
 
     return r.map((f: any) => ({
       InternalName: f.InternalName,
@@ -427,12 +431,12 @@ export class PnPSharePointClient implements ISharePointClient {
   }
 
   async getFieldChoices(
-    listTitle: string,
-    fieldInternalName: string
+      listTitle: string,
+      fieldInternalName: string
   ): Promise<string[]> {
     const f: any = await this.sp.web.lists
-      .getByTitle(listTitle)
-      .fields.getByInternalNameOrTitle(fieldInternalName)()
+        .getByTitle(listTitle)
+        .fields.getByInternalNameOrTitle(fieldInternalName)()
     return f.Choices || []
   }
 
@@ -443,8 +447,8 @@ export class PnPSharePointClient implements ISharePointClient {
   async getFileVersions(serverRelativeUrl: string): Promise<FileVersion[]> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     const versions = await this.sp.web
-      .getFileByServerRelativePath(fullUrl)
-      .versions.expand('CreatedBy')()
+        .getFileByServerRelativePath(fullUrl)
+        .versions.expand('CreatedBy')()
 
     return versions.map((v: any) => ({
       VersionLabel: v.VersionLabel,
@@ -463,9 +467,9 @@ export class PnPSharePointClient implements ISharePointClient {
 
   getVersionHistoryLink(serverRelativeUrl: string): string {
     return `${
-      this.baseUrl || ''
+        this.baseUrl || ''
     }/_layouts/15/Versions.aspx?FileName=${encodeURIComponent(
-      serverRelativeUrl
+        serverRelativeUrl
     )}`
   }
 
@@ -498,8 +502,8 @@ export class PnPSharePointClient implements ISharePointClient {
 
       const data = await response.json()
       const val =
-        data.d?.GetContextWebInformation?.FormDigestValue ||
-        data.FormDigestValue
+          data.d?.GetContextWebInformation?.FormDigestValue ||
+          data.FormDigestValue
 
       if (val) {
         this.digestCache = val
@@ -520,10 +524,10 @@ export class PnPSharePointClient implements ISharePointClient {
     if (txt !== '*') {
       const escapedTxt = txt.replace(/"/g, '""')
       if (opts.searchTitleOnly) {
-        // Includes Filename because for documents, Title is often blank.
+        // Logic for "Name Only" search
         parts.push(`(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*")`)
       } else {
-        // Search Title, Filename, or content.
+        // Logic for "Everything" search (Title, Name, and Content)
         parts.push(`(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*" OR ${escapedTxt}*)`)
       }
     } else {
@@ -534,13 +538,13 @@ export class PnPSharePointClient implements ISharePointClient {
     if (opts.fileTypes?.include?.length) {
       // Inclusion
       parts.push(
-        `(${opts.fileTypes.include.map((e) => `FileExtension:${e}`).join(' OR ')})`
+          `(${opts.fileTypes.include.map((e) => `FileExtension:${e}`).join(' OR ')})`
       )
     }
     if (opts.fileTypes?.exclude?.length) {
       // Exclusion
       parts.push(
-        `(${opts.fileTypes.exclude.map((e) => `NOT FileExtension:${e}`).join(' AND ')})`
+          `(${opts.fileTypes.exclude.map((e) => `NOT FileExtension:${e}`).join(' AND ')})`
       )
     }
 
@@ -582,7 +586,7 @@ export class PnPSharePointClient implements ISharePointClient {
         // Resolve mapped property if alias is used
         if (opts.mapping) {
           const found = Object.keys(opts.mapping).find(
-            (k) => opts.mapping![k] === key
+              (k) => opts.mapping![k] === key
           )
           if (found) mp = found
         }
