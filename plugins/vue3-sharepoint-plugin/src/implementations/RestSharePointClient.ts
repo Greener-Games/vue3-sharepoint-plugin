@@ -79,14 +79,14 @@ export class RestSharePointClient implements ISharePointClient {
 
   // --- Centralized Request Handler ---
   private async request<T = any>(
-    endpoint: string,
-    options: {
-      method?: string
-      body?: any
-      headers?: Record<string, string>
-      isWrite?: boolean
-      skipMetadata?: boolean // If true, doesn't unwrap .d or .d.results
-    } = {}
+      endpoint: string,
+      options: {
+        method?: string
+        body?: any
+        headers?: Record<string, string>
+        isWrite?: boolean
+        skipMetadata?: boolean // If true, doesn't unwrap .d or .d.results
+      } = {}
   ): Promise<T> {
     const { method = 'GET', body, isWrite = false } = options
 
@@ -96,8 +96,8 @@ export class RestSharePointClient implements ISharePointClient {
     }
 
     const fullUrl = endpoint.startsWith('http')
-      ? endpoint
-      : `${this.baseUrl}${endpoint}`
+        ? endpoint
+        : `${this.baseUrl}${endpoint}`
 
     const fetchOptions: RequestInit = {
       method,
@@ -107,11 +107,12 @@ export class RestSharePointClient implements ISharePointClient {
     if (body) {
       // Check for Blob or ArrayBuffer to avoid JSON stringification
       const isBinary =
-        body instanceof Blob ||
-        body instanceof ArrayBuffer ||
-        (typeof Buffer !== 'undefined' && Buffer.isBuffer(body))
+          body instanceof Blob ||
+          body instanceof ArrayBuffer ||
+          (typeof Buffer !== 'undefined' && Buffer.isBuffer(body))
 
-      fetchOptions.body = isBinary || typeof body === 'string' ? body : JSON.stringify(body)
+      fetchOptions.body =
+          isBinary || typeof body === 'string' ? body : JSON.stringify(body)
     }
 
     this.logger.log(`Request: ${method} ${fullUrl}`, body ? { body } : '')
@@ -120,9 +121,12 @@ export class RestSharePointClient implements ISharePointClient {
 
     if (!response.ok) {
       const errorText = await response.text()
-      this.logger.error(`Request Failed: ${response.status} ${response.statusText}`, errorText)
+      this.logger.error(
+          `Request Failed: ${response.status} ${response.statusText}`,
+          errorText
+      )
       throw new Error(
-        `SharePoint Request Failed: ${method} ${endpoint} - ${response.status} ${response.statusText}\n${errorText}`
+          `SharePoint Request Failed: ${method} ${endpoint} - ${response.status} ${response.statusText}\n${errorText}`
       )
     }
 
@@ -203,11 +207,11 @@ export class RestSharePointClient implements ISharePointClient {
       body += `${req.method} ${fullUrl} HTTP/1.1\r\nAccept: application/json;odata=verbose\r\n`
       if (req.headers)
         Object.entries(req.headers).forEach(
-          ([k, v]) => (body += `${k}: ${v}\r\n`)
+            ([k, v]) => (body += `${k}: ${v}\r\n`)
         )
       if (req.body) {
         body += `Content-Type: application/json;odata=verbose\r\n\r\n${JSON.stringify(
-          req.body
+            req.body
         )}\r\n`
       } else {
         body += `\r\n`
@@ -249,6 +253,10 @@ export class RestSharePointClient implements ISharePointClient {
         RowLimit: opts.rowLimit || 10,
         StartRow: opts.startRow || 0,
         SelectProperties: { results: select },
+        HitHighlightedProperties: { results: ['Contents', 'Title'] },
+        SummaryLength: 250,
+        EnableStemming: true,
+        TrimDuplicates: false,
       },
     }
 
@@ -261,7 +269,7 @@ export class RestSharePointClient implements ISharePointClient {
     })
 
     const rows =
-      data.d.postquery.PrimaryQueryResult.RelevantResults.Table.Rows.results
+        data.d.postquery.PrimaryQueryResult.RelevantResults.Table.Rows.results
 
     const items = rows.map((r: any) => {
       const map: any = {}
@@ -309,7 +317,7 @@ export class RestSharePointClient implements ISharePointClient {
     if (cached) return cached
 
     const data = await this.request<any[]>(
-      `/_api/web/lists/getbytitle('${list}')/fields?$filter=Hidden eq false`
+        `/_api/web/lists/getbytitle('${list}')/fields?$filter=Hidden eq false`
     )
 
     const mapped = data.map((f: any) => ({
@@ -330,7 +338,7 @@ export class RestSharePointClient implements ISharePointClient {
     if (cached) return cached
 
     const data = await this.request<any>(
-      `/_api/web/lists/getbytitle('${list}')/fields/getByInternalNameOrTitle('${field}')`
+        `/_api/web/lists/getbytitle('${list}')/fields/getByInternalNameOrTitle('${field}')`
     )
 
     const choices = data.Choices?.results || []
@@ -346,10 +354,13 @@ export class RestSharePointClient implements ISharePointClient {
     if (txt !== '*') {
       const escapedTxt = txt.replace(/"/g, '""')
       if (opts.searchTitleOnly) {
-        parts.push(`Title:"${escapedTxt}*"`)
-      } else {
-        // Search in Title OR Filename with wildcards for partial matches
+        // Logic for "Name Only" search
         parts.push(`(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*")`)
+      } else {
+        // Logic for "Everything" search (Title, Name, and Content)
+        parts.push(
+            `(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*" OR ${escapedTxt}*)`
+        )
       }
     } else {
       parts.push('*')
@@ -357,12 +368,16 @@ export class RestSharePointClient implements ISharePointClient {
 
     if (opts.fileTypes?.include?.length) {
       parts.push(
-        `(${opts.fileTypes.include.map((e) => `FileExtension:${e}`).join(' OR ')})`
+          `(${opts.fileTypes.include
+              .map((e) => `FileExtension:${e}`)
+              .join(' OR ')})`
       )
     }
     if (opts.fileTypes?.exclude?.length) {
       parts.push(
-        `(${opts.fileTypes.exclude.map((e) => `NOT FileExtension:${e}`).join(' AND ')})`
+          `(${opts.fileTypes.exclude
+              .map((e) => `NOT FileExtension:${e}`)
+              .join(' AND ')})`
       )
     }
     if (opts.scope) {
@@ -400,7 +415,7 @@ export class RestSharePointClient implements ISharePointClient {
         let mp = key
         if (opts.mapping) {
           const found = Object.keys(opts.mapping).find(
-            (k) => opts.mapping![k] === key
+              (k) => opts.mapping![k] === key
           )
           if (found) mp = found
         }
@@ -413,106 +428,109 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async createListItem(list: string, payload: any) {
-    return await this.request(
-      `/_api/web/lists/getbytitle('${list}')/items`,
-      {
-        method: 'POST',
-        body: payload,
-        isWrite: true
-      }
-    )
+    return await this.request(`/_api/web/lists/getbytitle('${list}')/items`, {
+      method: 'POST',
+      body: payload,
+      isWrite: true,
+    })
   }
 
   async updateListItem(list: string, id: number, payload: any) {
-    await this.request(
-      `/_api/web/lists/getbytitle('${list}')/items(${id})`,
-      {
-        method: 'POST',
-        body: payload,
-        headers: {
-          'X-HTTP-Method': 'MERGE',
-          'IF-MATCH': '*'
-        },
-        isWrite: true
-      }
-    )
+    await this.request(`/_api/web/lists/getbytitle('${list}')/items(${id})`, {
+      method: 'POST',
+      body: payload,
+      headers: {
+        'X-HTTP-Method': 'MERGE',
+        'IF-MATCH': '*',
+      },
+      isWrite: true,
+    })
   }
 
   async deleteListItem(list: string, id: number) {
-    await this.request(
-      `/_api/web/lists/getbytitle('${list}')/items(${id})`,
-      {
-        method: 'POST',
-        headers: {
-          'X-HTTP-Method': 'DELETE',
-          'IF-MATCH': '*'
-        },
-        isWrite: true
-      }
-    )
+    await this.request(`/_api/web/lists/getbytitle('${list}')/items(${id})`, {
+      method: 'POST',
+      headers: {
+        'X-HTTP-Method': 'DELETE',
+        'IF-MATCH': '*',
+      },
+      isWrite: true,
+    })
   }
 
   async getListItemById(list: string, id: number, select?: string[]) {
     const q = select ? `?$select=${select.join(',')}` : ''
     return await this.request(
-      `/_api/web/lists/getbytitle('${list}')/items(${id})${q}`
+        `/_api/web/lists/getbytitle('${list}')/items(${id})${q}`
     )
   }
 
-  async getItemAttachments(list: string, id: number): Promise<AttachmentInfo[]> {
+  async getItemAttachments(
+      list: string,
+      id: number
+  ): Promise<AttachmentInfo[]> {
     const results = await this.request<any[]>(
-      `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles`
+        `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles`
     )
-    return results.map(a => ({
+    return results.map((a) => ({
       FileName: a.FileName,
-      ServerRelativeUrl: a.ServerRelativeUrl
+      ServerRelativeUrl: a.ServerRelativeUrl,
     }))
   }
 
-  async addAttachment(list: string, id: number, fileName: string, file: Blob | ArrayBuffer): Promise<void> {
+  async addAttachment(
+      list: string,
+      id: number,
+      fileName: string,
+      file: Blob | ArrayBuffer
+  ): Promise<void> {
     // For binary upload, we need to ensure Content-Type is not application/json
     await this.request(
-      `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles/add(FileName='${fileName}')`,
-      {
-        method: 'POST',
-        body: file,
-        isWrite: true,
-        headers: {
+        `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles/add(FileName='${fileName}')`,
+        {
+          method: 'POST',
+          body: file,
+          isWrite: true,
+          headers: {
             // Overwriting Content-Type to undefined or null isn't standard in Headers object interaction
             // but we can set it to application/octet-stream or rely on fetch logic if we handled headers map better.
             // In request() helper, we merge headers. If we pass a header that conflicts, we need to ensure it wins.
-            'Content-Type': 'application/octet-stream'
+            'Content-Type': 'application/octet-stream',
+          },
         }
-      }
     )
   }
 
-  async deleteAttachment(list: string, id: number, fileName: string): Promise<void> {
+  async deleteAttachment(
+      list: string,
+      id: number,
+      fileName: string
+  ): Promise<void> {
     await this.request(
-      `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles/getByFileName('${fileName}')`,
-      {
-        method: 'POST',
-        headers: {
-          'X-HTTP-Method': 'DELETE',
-          'IF-MATCH': '*'
-        },
-        isWrite: true
-      }
+        `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles/getByFileName('${fileName}')`,
+        {
+          method: 'POST',
+          headers: {
+            'X-HTTP-Method': 'DELETE',
+            'IF-MATCH': '*',
+          },
+          isWrite: true,
+        }
     )
   }
 
   async uploadFile(url: string, name: string, file: any) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
     const data = await this.request<any>(
-      `/_api/web/getfolderbyserverrelativeurl('${fullUrl}')/files/add(url='${name}', overwrite=true)`,
-      {
-        method: 'POST',
-        body: file,
-        headers: {
-            'Content-Type': 'application/octet-stream'
-        },
-        isWrite: true
-      }
+        `/_api/web/getfolderbyserverrelativeurl('${fullUrl}')/files/add(url='${name}', overwrite=true)`,
+        {
+          method: 'POST',
+          body: file,
+          headers: {
+            'Content-Type': 'application/octet-stream',
+          },
+          isWrite: true,
+        }
     )
     return data.ServerRelativeUrl
   }
@@ -524,8 +542,8 @@ export class RestSharePointClient implements ISharePointClient {
     // However, downloadFile logic is simple enough.
     const headers = await this.getHeaders(false)
     const res = await fetch(
-      `${this.baseUrl}/_api/web/getfilebyserverrelativeurl('${fullUrl}')/$value`,
-      { headers }
+        `${this.baseUrl}/_api/web/getfilebyserverrelativeurl('${fullUrl}')/$value`,
+        { headers }
     )
     return await res.blob()
   }
@@ -534,7 +552,7 @@ export class RestSharePointClient implements ISharePointClient {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
     // 1. Get List Item URI
     const meta = await this.request<any>(
-       `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/ListItemAllFields`
+        `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/ListItemAllFields`
     )
     const uri = meta.__metadata.uri
     const type = meta.__metadata.type
@@ -545,40 +563,34 @@ export class RestSharePointClient implements ISharePointClient {
       body: { __metadata: { type }, ...payload },
       headers: {
         'X-HTTP-Method': 'MERGE',
-        'IF-MATCH': '*'
+        'IF-MATCH': '*',
       },
-      isWrite: true
+      isWrite: true,
     })
   }
 
   async deleteFile(url: string) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
-    await this.request(
-      `/_api/web/getfilebyserverrelativeurl('${fullUrl}')`,
-      {
-        method: 'POST',
-        headers: {
-          'X-HTTP-Method': 'DELETE',
-          'IF-MATCH': '*'
-        },
-        isWrite: true
-      }
-    )
+    await this.request(`/_api/web/getfilebyserverrelativeurl('${fullUrl}')`, {
+      method: 'POST',
+      headers: {
+        'X-HTTP-Method': 'DELETE',
+        'IF-MATCH': '*',
+      },
+      isWrite: true,
+    })
   }
 
   async createFolder(url: string) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
-    await this.request(
-      `/_api/web/folders`,
-      {
-        method: 'POST',
-        body: {
-          __metadata: { type: 'SP.Folder' },
-          ServerRelativeUrl: fullUrl,
-        },
-        isWrite: true
-      }
-    )
+    await this.request(`/_api/web/folders`, {
+      method: 'POST',
+      body: {
+        __metadata: { type: 'SP.Folder' },
+        ServerRelativeUrl: fullUrl,
+      },
+      isWrite: true,
+    })
   }
 
   // --- Webs & Lists ---
@@ -588,45 +600,51 @@ export class RestSharePointClient implements ISharePointClient {
       Id: w.Id,
       Title: w.Title,
       Url: w.Url,
-      Description: w.Description
+      Description: w.Description,
     }
   }
 
   async getSubwebs(): Promise<WebInfo[]> {
     const webs = await this.request<any[]>(`/_api/web/webs`)
-    return webs.map(w => ({
+    return webs.map((w) => ({
       Id: w.Id,
       Title: w.Title,
       Url: w.Url,
-      Description: w.Description
+      Description: w.Description,
     }))
   }
 
   async getLists(): Promise<ListInfo[]> {
     const lists = await this.request<any[]>(`/_api/web/lists`)
-    return lists.map(l => ({
+    return lists.map((l) => ({
       Id: l.Id,
       Title: l.Title,
       Description: l.Description,
       ItemCount: l.ItemCount,
       Hidden: l.Hidden,
-      ImageUrl: l.ImageUrl
+      ImageUrl: l.ImageUrl,
     }))
   }
 
   async getList(listTitle: string): Promise<ListInfo> {
-    const l = await this.request<any>(`/_api/web/lists/getbytitle('${listTitle}')`)
+    const l = await this.request<any>(
+        `/_api/web/lists/getbytitle('${listTitle}')`
+    )
     return {
       Id: l.Id,
       Title: l.Title,
       Description: l.Description,
       ItemCount: l.ItemCount,
       Hidden: l.Hidden,
-      ImageUrl: l.ImageUrl
+      ImageUrl: l.ImageUrl,
     }
   }
 
-  async createList(title: string, description?: string, template = 100): Promise<ListInfo> {
+  async createList(
+      title: string,
+      description?: string,
+      template = 100
+  ): Promise<ListInfo> {
     const l = await this.request<any>(`/_api/web/lists`, {
       method: 'POST',
       isWrite: true,
@@ -634,8 +652,8 @@ export class RestSharePointClient implements ISharePointClient {
         __metadata: { type: 'SP.List' },
         Title: title,
         Description: description,
-        BaseTemplate: template
-      }
+        BaseTemplate: template,
+      },
     })
     return {
       Id: l.Id,
@@ -643,22 +661,19 @@ export class RestSharePointClient implements ISharePointClient {
       Description: l.Description,
       ItemCount: l.ItemCount,
       Hidden: l.Hidden,
-      ImageUrl: l.ImageUrl
+      ImageUrl: l.ImageUrl,
     }
   }
 
   async deleteList(title: string): Promise<void> {
-    await this.request(
-      `/_api/web/lists/getbytitle('${title}')`,
-      {
-        method: 'POST',
-        headers: {
-          'X-HTTP-Method': 'DELETE',
-          'IF-MATCH': '*'
-        },
-        isWrite: true
-      }
-    )
+    await this.request(`/_api/web/lists/getbytitle('${title}')`, {
+      method: 'POST',
+      headers: {
+        'X-HTTP-Method': 'DELETE',
+        'IF-MATCH': '*',
+      },
+      isWrite: true,
+    })
   }
 
   // --- Helpers ---
@@ -693,9 +708,9 @@ export class RestSharePointClient implements ISharePointClient {
     const d = await res.json()
     this.digestCache = d.d.GetContextWebInformation.FormDigestValue
     this.digestExpiry =
-      Date.now() +
-      d.d.GetContextWebInformation.FormDigestTimeoutSeconds * 1000 -
-      60000
+        Date.now() +
+        d.d.GetContextWebInformation.FormDigestTimeoutSeconds * 1000 -
+        60000
     return this.digestCache!
   }
 
@@ -708,19 +723,16 @@ export class RestSharePointClient implements ISharePointClient {
 
   async getSiteUsers(): Promise<UserInfo[]> {
     return await this.request<UserInfo[]>(
-      `/_api/web/siteusers?$filter=PrincipalType eq 1`
+        `/_api/web/siteusers?$filter=PrincipalType eq 1`
     )
   }
 
   async ensureUser(loginName: string): Promise<UserInfo> {
-    const data = await this.request<any>(
-      `/_api/web/ensureUser`,
-      {
-        method: 'POST',
-        isWrite: true,
-        body: { logonName: loginName }
-      }
-    )
+    const data = await this.request<any>(`/_api/web/ensureUser`, {
+      method: 'POST',
+      isWrite: true,
+      body: { logonName: loginName },
+    })
     return data
   }
 
@@ -731,7 +743,7 @@ export class RestSharePointClient implements ISharePointClient {
       // Step 1: Get the User ID/LoginName from Email
       const user = await this.getUserByEmail(email)
       endpoint = `/_api/web/siteusers/getByLoginName(@v)/groups?@v='${encodeURIComponent(
-        user.LoginName
+          user.LoginName
       )}'`
     } else {
       // Current User
@@ -743,50 +755,52 @@ export class RestSharePointClient implements ISharePointClient {
 
   async addUserToGroup(groupName: string, loginName: string): Promise<void> {
     const user = await this.ensureUser(loginName)
-    await this.request(
-      `/_api/web/sitegroups/getByName('${groupName}')/users`,
-      {
-        method: 'POST',
-        isWrite: true,
-        body: { LoginName: user.LoginName }
-      }
-    )
+    await this.request(`/_api/web/sitegroups/getByName('${groupName}')/users`, {
+      method: 'POST',
+      isWrite: true,
+      body: { LoginName: user.LoginName },
+    })
   }
 
-  async removeUserFromGroup(groupName: string, loginName: string): Promise<void> {
+  async removeUserFromGroup(
+      groupName: string,
+      loginName: string
+  ): Promise<void> {
     await this.request(
-       `/_api/web/sitegroups/getByName('${groupName}')/users/removeByLoginName(@v)?@v='${encodeURIComponent(loginName)}'`,
-       {
-         method: 'POST',
-         isWrite: true
-       }
-    )
-  }
-
-  async createGroup(groupName: string, description?: string): Promise<SiteGroup> {
-    return await this.request<SiteGroup>(
-      `/_api/web/sitegroups`,
-      {
-        method: 'POST',
-        isWrite: true,
-        body: {
-          __metadata: { type: 'SP.Group' },
-          Title: groupName,
-          Description: description
+        `/_api/web/sitegroups/getByName('${groupName}')/users/removeByLoginName(@v)?@v='${encodeURIComponent(
+            loginName
+        )}'`,
+        {
+          method: 'POST',
+          isWrite: true,
         }
-      }
     )
+  }
+
+  async createGroup(
+      groupName: string,
+      description?: string
+  ): Promise<SiteGroup> {
+    return await this.request<SiteGroup>(`/_api/web/sitegroups`, {
+      method: 'POST',
+      isWrite: true,
+      body: {
+        __metadata: { type: 'SP.Group' },
+        Title: groupName,
+        Description: description,
+      },
+    })
   }
 
   async getUserEffectivePermissions(
-    email?: string
+      email?: string
   ): Promise<SPBasePermissions> {
     let endpoint = ''
 
     if (email) {
       const user = await this.getUserByEmail(email)
       endpoint = `/_api/web/getUserEffectivePermissions(@v)?@v='${encodeURIComponent(
-        user.LoginName
+          user.LoginName
       )}'`
     } else {
       endpoint = `/_api/web/effectiveBasePermissions`
@@ -799,7 +813,7 @@ export class RestSharePointClient implements ISharePointClient {
   private async getUserByEmail(email: string): Promise<UserInfo> {
     // We filter site users to find the specific email
     const users = await this.request<UserInfo[]>(
-      `/_api/web/siteusers?$filter=Email eq '${email}'`
+        `/_api/web/siteusers?$filter=Email eq '${email}'`
     )
     const user = users[0]
     if (!user)
@@ -833,9 +847,9 @@ export class RestSharePointClient implements ISharePointClient {
     // The classic Versions.aspx page can accept a FileName parameter
     // This works on both SharePoint On-Prem and Online
     return `${
-      this.baseUrl
+        this.baseUrl
     }/_layouts/15/Versions.aspx?FileName=${encodeURIComponent(
-      serverRelativeUrl
+        serverRelativeUrl
     )}`
   }
 }

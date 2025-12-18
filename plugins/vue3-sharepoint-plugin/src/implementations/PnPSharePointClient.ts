@@ -520,10 +520,11 @@ export class PnPSharePointClient implements ISharePointClient {
     if (txt !== '*') {
       const escapedTxt = txt.replace(/"/g, '""')
       if (opts.searchTitleOnly) {
-        parts.push(`Title:"${escapedTxt}*"`)
-      } else {
-        // Search in Title OR Filename with wildcards for partial matches
+        // Includes Filename because for documents, Title is often blank.
         parts.push(`(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*")`)
+      } else {
+        // Search Title, Filename, or content.
+        parts.push(`(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*" OR ${escapedTxt}*)`)
       }
     } else {
       parts.push('*')
