@@ -451,6 +451,23 @@ export class RestSharePointClient implements ISharePointClient {
     )
   }
 
+  async getListItems<T = any>(
+    list: string,
+    query?: string,
+    select?: string[],
+    expand?: string[]
+  ): Promise<T[]> {
+    const params: string[] = []
+    if (query) params.push(`$filter=${query}`)
+    if (select && select.length > 0) params.push(`$select=${select.join(',')}`)
+    if (expand && expand.length > 0) params.push(`$expand=${expand.join(',')}`)
+
+    const qs = params.length > 0 ? '?' + params.join('&') : ''
+    return await this.request<T[]>(
+      `/_api/web/lists/getbytitle('${list}')/items${qs}`
+    )
+  }
+
   async getItemAttachments(list: string, id: number): Promise<AttachmentInfo[]> {
     const results = await this.request<any[]>(
       `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles`

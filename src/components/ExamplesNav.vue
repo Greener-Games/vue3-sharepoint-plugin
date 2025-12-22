@@ -24,6 +24,7 @@ interface NavItem {
 const items: NavItem[] = [
   { id: 'search', label: 'CV Search' },
   { id: 'upload', label: 'Drop Off Library' },
+  { id: 'todo', label: 'To-Do List (CRUD)' },
   { id: 'mydocs', label: 'My Documents' },
   { id: 'myteam', label: 'Team Documents' },
   { id: 'system', label: 'System Info' }

@@ -163,6 +163,12 @@ export interface ISharePointClient {
     id: number,
     select?: string[]
   ): Promise<T>
+  getListItems<T = any>(
+    listTitle: string,
+    query?: string,
+    select?: string[],
+    expand?: string[]
+  ): Promise<T[]>
 
   // Attachments
   getItemAttachments(listTitle: string, itemId: number): Promise<AttachmentInfo[]>

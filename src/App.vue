@@ -17,6 +17,7 @@ import CvSearch from "@/components/CvSearch.vue";
 import DocumentUploadTest from "@/components/DocumentUploadTest.vue";
 import MyDocumentsDashboard from "@/components/MyDocumentsDashboard.vue";
 import SystemInfo from "@/components/SystemInfo.vue";
+import ToDoList from "@/components/ToDoList.vue";
 
 const currentExample = ref('search')
 
@@ -24,6 +25,7 @@ const currentComponent = computed(() => {
   switch (currentExample.value) {
     case 'search': return CvSearch
     case 'upload': return DocumentUploadTest
+    case 'todo': return ToDoList
     case 'mydocs': return MyDocumentsDashboard
     case 'myteam': return MyDocumentsDashboard
     case 'system': return SystemInfo

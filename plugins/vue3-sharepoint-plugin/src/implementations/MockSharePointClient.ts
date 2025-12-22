@@ -425,6 +425,17 @@ export class MockSharePointClient implements ISharePointClient {
   async getListItemById(list: string, id: number) {
     return this.data.lists![list]?.find((i) => i.Id === id)
   }
+  async getListItems<T = any>(
+    list: string,
+    query?: string,
+    select?: string[],
+    expand?: string[]
+  ): Promise<T[]> {
+    // Basic Mock Filtering (only supports exact match key=value or contains for now if we want to get fancy,
+    // but for now return all)
+    // TODO: Implement basic OData filter parsing for mock if needed.
+    return (this.data.lists![list] || []) as T[]
+  }
   async updateFileMetadata(url: string, payload: any) {
     this.logger.log(`Update Meta ${url}`, payload)
   }

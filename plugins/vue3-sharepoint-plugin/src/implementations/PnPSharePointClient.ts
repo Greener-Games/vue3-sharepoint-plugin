@@ -229,6 +229,25 @@ export class PnPSharePointClient implements ISharePointClient {
     return (await q()) as T
   }
 
+  async getListItems<T = any>(
+    listTitle: string,
+    query?: string,
+    select?: string[],
+    expand?: string[]
+  ): Promise<T[]> {
+    let q = this.sp.web.lists.getByTitle(listTitle).items
+    if (query) {
+      q = q.filter(query)
+    }
+    if (select && select.length > 0) {
+      q = q.select(...select)
+    }
+    if (expand && expand.length > 0) {
+      q = q.expand(...expand)
+    }
+    return (await q()) as T[]
+  }
+
   async getItemAttachments(listTitle: string, itemId: number): Promise<AttachmentInfo[]> {
     const attachments = await this.sp.web.lists.getByTitle(listTitle).items.getById(itemId).attachmentFiles()
     return attachments.map(a => ({

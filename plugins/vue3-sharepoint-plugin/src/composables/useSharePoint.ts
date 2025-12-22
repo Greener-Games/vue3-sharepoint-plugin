@@ -89,6 +89,13 @@ export function useSharePoint() {
     executeBatch: client.executeBatch.bind(client),
 
     // Items
+    createListItem: client.createListItem.bind(client),
+    updateListItem: client.updateListItem.bind(client),
+    deleteListItem: client.deleteListItem.bind(client),
+    getListItemById: client.getListItemById.bind(client),
+    getListItems: client.getListItems.bind(client),
+
+    // Legacy Aliases (keep for backwards compatibility if needed, or remove)
     addItem: client.createListItem.bind(client),
     updateItem: client.updateListItem.bind(client),
     deleteItem: client.deleteListItem.bind(client),
