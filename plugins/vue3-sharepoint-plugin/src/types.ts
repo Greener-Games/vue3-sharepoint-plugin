@@ -22,14 +22,6 @@ export interface ListItemQueryOptions {
   ascending?: boolean
 }
 
-export interface AdvancedSearchOptions extends ListItemQueryOptions {
-  /**
-   * Managed Properties to select from the Search Index.
-   * If omitted, defaults to ['Title', 'Path', 'HitHighlightedSummary'] plus hydration IDs.
-   */
-  searchSelect?: string[]
-}
-
 export type FilterValue =
   | string
   | number
@@ -48,7 +40,12 @@ export interface SearchRequestOptions {
   rowLimit?: number
   startRow?: number
   mapping?: Record<string, string>
-  selectFields?: string[] | AdvancedSearchOptions
+  selectFields?: string[]
+  /**
+   * Fields to expand in the hydration step (e.g. ['Author', 'Department']).
+   * Presence of this field automatically triggers hydration.
+   */
+  expandFields?: string[]
   /**
    * Filter search results by type.
    * - 'items': Returns files and list items (excludes folders).

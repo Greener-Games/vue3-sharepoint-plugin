@@ -2,7 +2,6 @@ import type {
   IBatch,
   ISharePointClient,
   ListItemQueryOptions,
-  AdvancedSearchOptions,
   SearchRequestOptions,
   SearchResult,
   SharePointConfig,
@@ -92,42 +91,39 @@ export class PnPSharePointClient implements ISharePointClient {
     this.logger.log(`Search KQL: ${kql}`)
 
     try {
-      // Normalize selectFields
-      let select: string[] = []
-      let hydration: AdvancedSearchOptions | undefined
+      const userSelects = options.selectFields || []
+      const userExpands = options.expandFields || []
 
-      if (Array.isArray(options.selectFields)) {
-        select = options.selectFields
-      } else if (options.selectFields) {
-        // Object format -> Advanced/Hydration
-        hydration = options.selectFields
-        select = hydration.searchSelect || [
-          'Title',
-          'Path',
-          'HitHighlightedSummary'
-        ]
-      } else {
-        // Default
-        select = ['Title', 'Path', 'HitHighlightedSummary']
-      }
+      // Determine if we need hydration
+      // Trigger if explicit expandFields OR if any select field implies expansion (contains '/')
+      const needsHydration = userExpands.length > 0 || userSelects.some(f => f.includes('/'))
 
-      // Add mapping keys to search selection
+      // 1. Prepare Search Selects
+      // Filter out fields that are definitely NOT for Search (e.g. have slashes)
+      // Always include defaults + hydration IDs if needed
+      let searchSelect = [
+        'Title', 'Path', 'HitHighlightedSummary',
+        ...userSelects.filter(f => !f.includes('/'))
+      ]
+
       if (options.mapping) {
-        select = [...new Set([...select, ...Object.keys(options.mapping)])]
+        searchSelect = [...searchSelect, ...Object.keys(options.mapping).filter(k => !k.includes('/'))]
       }
 
-      // Ensure we fetch identifiers if hydration is requested
-      if (hydration) {
-        if (!select.includes('ListId')) select.push('ListId')
-        if (!select.includes('ListItemId')) select.push('ListItemId')
-        if (!select.includes('UniqueId')) select.push('UniqueId')
+      if (needsHydration) {
+        if (!searchSelect.includes('ListId')) searchSelect.push('ListId')
+        if (!searchSelect.includes('ListItemId')) searchSelect.push('ListItemId')
+        if (!searchSelect.includes('UniqueId')) searchSelect.push('UniqueId')
       }
+
+      // Dedupe
+      searchSelect = [...new Set(searchSelect)]
 
       const searchResults = await this.sp.search({
         Querytext: kql,
         RowLimit: options.rowLimit || 10,
         StartRow: options.startRow || 0,
-        SelectProperties: select,
+        SelectProperties: searchSelect,
         TrimDuplicates: false,
         // Explicitly requesting highlights for content
         HitHighlightedProperties: ['Contents', 'Title'],
@@ -167,27 +163,26 @@ export class PnPSharePointClient implements ISharePointClient {
       })
 
       // F. Hydration (Optional)
-      if (hydration && items.length > 0) {
+      if (needsHydration && items.length > 0) {
+        // Prepare List Selects
+        // Filter out fields that are definitely Search-Only
+        const listSelect = userSelects.filter(f => !this.isSearchOnlyProp(f))
+
         // We need to fetch the actual list item for each result
-        // We can do this efficiently by batching requests
         const [batchedWeb, execute] = this.sp.web.batched()
-        const hydrationMap = new Map<string, any>() // Key: ListId:ListItemId (or UniqueId), Value: Item
+        const hydrationMap = new Map<string, any>()
 
         items.forEach((item: any) => {
-          // Identify Item
-          // Strategy 1: ListId + ListItemId
           if (item.ListId && item.ListItemId) {
              let q = batchedWeb.lists.getById(item.ListId).items.getById(parseInt(item.ListItemId, 10))
-             if (hydration!.select) q = q.select(...hydration!.select)
-             if (hydration!.expand) q = q.expand(...hydration!.expand)
+
+             if (listSelect.length > 0) q = q.select(...listSelect)
+             if (userExpands.length > 0) q = q.expand(...userExpands)
 
              q().then(r => {
-               // Store result mapped by ID
                hydrationMap.set(`${item.ListId}:${item.ListItemId}`, r)
              }).catch(() => { /* ignore missing items */ })
           }
-          // Strategy 2: UniqueId (DocId) -> GetFileById? But that is for Files.
-          // ListId+ListItemId is safer for general items if available.
         })
 
         await execute()
@@ -721,5 +716,11 @@ export class PnPSharePointClient implements ISharePointClient {
       hash |= 0
     }
     return hash
+  }
+
+  private isSearchOnlyProp(field: string): boolean {
+    // Regex for known Managed Properties that usually don't exist on List Items
+    const searchOnlyPattern = /^(Refinable|HitHighlighted|Path$|OriginalPath$|Rank$|DocId$|WorkId$|Piw)/i
+    return searchOnlyPattern.test(field)
   }
 }

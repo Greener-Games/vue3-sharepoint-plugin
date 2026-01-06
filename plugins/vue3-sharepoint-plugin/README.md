@@ -161,7 +161,8 @@ Performs a search query. This updates `searchCtx.results`.
 | `fileTypes` | `{ include?: string[], exclude?: string[] }` | No | - | Filter by file extension. e.g. `{ include: ['pdf'] }`. |
 | `filters` | `Record<string, any>` | No | - | Faceted filters (Array=OR, String=AND). |
 | `mapping` | `Record<string, string>` | No | - | Maps internal SharePoint Managed Properties to friendly names. Supports deep mapping (e.g. `'Author.Title': 'owner.name'`). |
-| `selectFields` | `string[]` \| `AdvancedSearchOptions` | No | - | Request specific fields. Pass an **Object** to trigger **Hydration** (fetch underlying list items). |
+| `selectFields` | `string[]` | No | - | Fields to request. The plugin intelligently splits these between Search Index (managed props) and List Item (columns). |
+| `expandFields` | `string[]` | No | - | **Triggers Hydration.** Fields to expand (e.g. `['Author']`). When present, list items are fetched. |
 | `searchTitleOnly`| `boolean`| No | `false` | If `true`, searches `Title` property only. |
 
 ### 🚀 Advanced Search & Hydration
@@ -174,10 +175,8 @@ Just gets properties from the Search Index. Fast and simple.
 ```typescript
 const results = await searchCtx.execute({
   query: 'ContentType:Document',
-  // Simple Array: Get standard managed properties
   selectFields: ['Title', 'Path', 'Author', 'Created'],
 
-  // Simple Mapping
   mapping: {
     'Path': 'url',
     'Created': 'date'
@@ -188,25 +187,27 @@ const results = await searchCtx.execute({
 #### 2. Advanced Search (Hydration) with Deep Mapping
 Fetches the underlying List Item to get data not in the search index (e.g., expanded User objects).
 
-**Key Concept: `searchSelect` vs `select`**
-*   **`searchSelect` (Search Index):** Fast, read-only "Managed Properties". Use this for the initial query criteria and basic display info (e.g. `Title`, `Path`, `RefinableString01`).
-*   **`select` (List Item):** The actual "Columns" in the list. Use this in the hydration step to get full details that the Search Index flattens or ignores (e.g. User Emails, Lookup ID/Values, Taxonomy Objects).
+**How it works:**
+*   Add **`expandFields`** to trigger hydration.
+*   Put **ALL** desired fields in **`selectFields`**. The plugin automatically routes them:
+    *   **Search Index:** Gets standard properties + anything looking like a Managed Property.
+    *   **List Item:** Gets columns + expanded fields (anything with `/`).
 
 ```typescript
 const results = await searchCtx.execute({
   query: 'ContentType:Document',
 
-  // Object: Triggers Hydration
-  selectFields: {
-    // What to fetch from the actual List Item
-    select: ['Id', 'Title', 'Author/Title', 'Author/Email', 'Department/Title'],
-    expand: ['Author', 'Department'], // Expand User and Lookup fields
+  // 1. List EVERYTHING you want
+  selectFields: [
+    'Title', 'Path', 'HitHighlightedSummary', // Search Props
+    'Author/Title', 'Author/Email',           // List Expansions (auto-routed to List)
+    'Department/Title'
+  ],
 
-    // (Optional) What to fetch from Search Index initially
-    searchSelect: ['Title', 'Path', 'HitHighlightedSummary']
-  },
+  // 2. Trigger Hydration
+  expandFields: ['Author', 'Department'],
 
-  // Deep Mapping using Dot Notation
+  // 3. Deep Mapping
   mapping: {
     'Path': 'document.url',           // Map standard prop
     'Author.Title': 'meta.owner',     // Map hydrated prop to nested object
@@ -216,12 +217,13 @@ const results = await searchCtx.execute({
 
 /* Result Structure:
 {
+  Title: "...",
+  HitHighlightedSummary: "<b>...</b>",
   document: { url: "..." },
   meta: {
     owner: "John Doe",
     dept: "IT"
-  },
-  ...
+  }
 }
 */
 ```

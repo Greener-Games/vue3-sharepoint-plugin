@@ -1,7 +1,6 @@
 import type {
   ISharePointClient,
   ListItemQueryOptions,
-  AdvancedSearchOptions,
   SearchRequestOptions,
   SearchResult,
   SharePointConfig,
@@ -241,45 +240,33 @@ export class RestSharePointClient implements ISharePointClient {
     const kql = this.buildKql(opts)
     this.logger.log(`Search KQL: ${kql}`)
 
-    // Normalize selectFields
-    let select: string[] = []
-    let hydration: AdvancedSearchOptions | undefined
+    const userSelects = opts.selectFields || []
+    const userExpands = opts.expandFields || []
+    const needsHydration = userExpands.length > 0 || userSelects.some(f => f.includes('/'))
 
-    if (Array.isArray(opts.selectFields)) {
-      select = opts.selectFields
-    } else if (opts.selectFields) {
-      hydration = opts.selectFields
-      select = hydration.searchSelect || [
-        'Title',
-        'Path',
-        'HitHighlightedSummary'
-      ]
-    } else {
-      select = [
-        'Title',
-        'Path',
-        'OriginalPath',
-        'UniqueId',
-        'HitHighlightedSummary'
-      ]
-    }
+    let searchSelect = [
+      'Title', 'Path', 'OriginalPath', 'UniqueId', 'HitHighlightedSummary',
+      ...userSelects.filter(f => !f.includes('/'))
+    ]
 
     if (opts.mapping) {
-      select = [...new Set([...select, ...Object.keys(opts.mapping)])]
+      searchSelect = [...searchSelect, ...Object.keys(opts.mapping).filter(k => !k.includes('/'))]
     }
 
-    // Ensure identifiers for hydration
-    if (hydration) {
-      if (!select.includes('ListId')) select.push('ListId')
-      if (!select.includes('ListItemId')) select.push('ListItemId')
+    if (needsHydration) {
+      if (!searchSelect.includes('ListId')) searchSelect.push('ListId')
+      if (!searchSelect.includes('ListItemId')) searchSelect.push('ListItemId')
     }
+
+    // Dedupe
+    searchSelect = [...new Set(searchSelect)]
 
     const payload = {
       request: {
         Querytext: kql,
         RowLimit: opts.rowLimit || 10,
         StartRow: opts.startRow || 0,
-        SelectProperties: { results: select },
+        SelectProperties: { results: searchSelect },
         HitHighlightedProperties: { results: ['Contents', 'Title'] },
         SummaryLength: 250,
         EnableStemming: true,
@@ -312,16 +299,16 @@ export class RestSharePointClient implements ISharePointClient {
       return map
     })
 
-    // Hydration (REST Batching)
-    if (hydration && items.length > 0) {
-      // Parallel fetch is often safer/easier for small sets (10 items).
+    // Hydration
+    if (needsHydration && items.length > 0) {
+      const listSelect = userSelects.filter(f => !this.isSearchOnlyProp(f))
 
       await Promise.all(items.map(async (item: any) => {
           if (item.ListId && item.ListItemId) {
             try {
               const params: string[] = []
-              if (hydration!.select) params.push(`$select=${hydration!.select.join(',')}`)
-              if (hydration!.expand) params.push(`$expand=${hydration!.expand.join(',')}`)
+              if (listSelect.length > 0) params.push(`$select=${listSelect.join(',')}`)
+              if (userExpands.length > 0) params.push(`$expand=${userExpands.join(',')}`)
               const qs = params.length > 0 ? `?${params.join('&')}` : ''
 
               const hydrated = await this.request(`/_api/web/lists/getById('${item.ListId}')/items(${item.ListItemId})${qs}`)
@@ -965,5 +952,10 @@ export class RestSharePointClient implements ISharePointClient {
     }/_layouts/15/Versions.aspx?FileName=${encodeURIComponent(
         serverRelativeUrl
     )}`
+  }
+
+  private isSearchOnlyProp(field: string): boolean {
+    const searchOnlyPattern = /^(Refinable|HitHighlighted|Path$|OriginalPath$|Rank$|DocId$|WorkId$|Piw)/i
+    return searchOnlyPattern.test(field)
   }
 }

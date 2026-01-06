@@ -4,7 +4,6 @@ import type {
   IBatch,
   ISharePointClient,
   ListItemQueryOptions,
-  AdvancedSearchOptions,
   SearchRequestOptions,
   SearchResult,
   SiteGroup,
@@ -262,7 +261,7 @@ export class MockSharePointClient implements ISharePointClient {
     // Hydration (Mock - just merging, as we already have full objects in Mock lists usually)
     // But if we want to simulate expand, we might need to do something.
     // For now, we assume the Mock Data objects already contain all info or we can ignore expand.
-    if (opts.selectFields && !Array.isArray(opts.selectFields)) {
+    if (opts.expandFields) {
        // Pass (No-op for Mock unless we want to simulate partial objects first)
     }
 
