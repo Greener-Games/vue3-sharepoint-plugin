@@ -1,11 +1,11 @@
-import { ref, computed, Ref } from 'vue'
-import { ISharePointClient, SearchRequestOptions, SearchResult } from '../types'
+import { ref, computed, type Ref } from 'vue'
+import type { ISharePointClient, SearchRequestOptions, SearchResult } from '../types'
 
 export interface SearchInstance {
   loading: Ref<boolean>
   error: Ref<string | null>
   results: Ref<SearchResult<any> | null>
-  execute: <T = any>(opts: SearchRequestOptions) => Promise<void>
+  execute: (opts: SearchRequestOptions) => Promise<void>
   nextPage: () => void
   prevPage: () => void
   goToPage: (page: number) => void
@@ -23,14 +23,14 @@ export function useSearch(client: ISharePointClient): SearchInstance {
   // Store last options to handle pagination correctly
   const _lastOptions = ref<SearchRequestOptions | null>(null)
 
-  const execute = async <T = any>(opts: SearchRequestOptions) => {
+  const execute = async (opts: SearchRequestOptions) => {
     loading.value = true
     error.value = null
     // Clone options to freeze state for pagination
     const safeOptions = JSON.parse(JSON.stringify(opts))
 
     try {
-      const data = await client.search<T>(safeOptions)
+      const data = await client.search<any>(safeOptions)
       results.value = data
       _lastOptions.value = safeOptions
     } catch (e: any) {

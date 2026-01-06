@@ -13,6 +13,23 @@ export interface FieldDefinition {
   Choices?: string[]
 }
 
+export interface ListItemQueryOptions {
+  select?: string[]
+  expand?: string[]
+  filter?: string
+  top?: number
+  orderBy?: string
+  ascending?: boolean
+}
+
+export interface AdvancedSearchOptions extends ListItemQueryOptions {
+  /**
+   * Managed Properties to select from the Search Index.
+   * If omitted, defaults to ['Title', 'Path', 'HitHighlightedSummary'] plus hydration IDs.
+   */
+  searchSelect?: string[]
+}
+
 export type FilterValue =
   | string
   | number
@@ -31,7 +48,7 @@ export interface SearchRequestOptions {
   rowLimit?: number
   startRow?: number
   mapping?: Record<string, string>
-  selectFields?: string[]
+  selectFields?: string[] | AdvancedSearchOptions
   /**
    * Filter search results by type.
    * - 'items': Returns files and list items (excludes folders).
@@ -65,35 +82,37 @@ export interface SPBasePermissions {
 }
 
 // Helper Enum for common permission checks (optional but recommended)
-export enum PermissionKind {
-  EmptyMask = 0,
-  ViewListItems = 1,
-  AddListItems = 2,
-  EditListItems = 3,
-  DeleteListItems = 4,
-  ApproveItems = 5,
-  OpenItems = 6,
-  ViewVersions = 7,
-  DeleteVersions = 8,
-  CancelCheckout = 9,
-  ManagePersonalViews = 10,
-  ManageLists = 12,
-  ViewFormPages = 13,
-  Open = 17,
-  ViewPages = 18,
-  ManagePermissions = 19, // "Full Control" often implies this
-  BrowseDirectories = 24,
-  BrowseUserInfo = 25,
-  AddDelPrivateWebParts = 26,
-  UpdatePersonalWebParts = 27,
-  ManageWeb = 28, // Admin
-  UseClientIntegration = 37,
-  UseRemoteAPIs = 38,
-  ManageAlerts = 39,
-  CreateAlerts = 40,
-  EditMyUserInfo = 41,
-  EnumeratePermissions = 63
-}
+export const PermissionKind = {
+  EmptyMask: 0,
+  ViewListItems: 1,
+  AddListItems: 2,
+  EditListItems: 3,
+  DeleteListItems: 4,
+  ApproveItems: 5,
+  OpenItems: 6,
+  ViewVersions: 7,
+  DeleteVersions: 8,
+  CancelCheckout: 9,
+  ManagePersonalViews: 10,
+  ManageLists: 12,
+  ViewFormPages: 13,
+  Open: 17,
+  ViewPages: 18,
+  ManagePermissions: 19, // "Full Control" often implies this
+  BrowseDirectories: 24,
+  BrowseUserInfo: 25,
+  AddDelPrivateWebParts: 26,
+  UpdatePersonalWebParts: 27,
+  ManageWeb: 28, // Admin
+  UseClientIntegration: 37,
+  UseRemoteAPIs: 38,
+  ManageAlerts: 39,
+  CreateAlerts: 40,
+  EditMyUserInfo: 41,
+  EnumeratePermissions: 63
+} as const;
+
+export type PermissionKind = typeof PermissionKind[keyof typeof PermissionKind];
 
 export interface FileVersion {
   VersionLabel: string
@@ -161,8 +180,14 @@ export interface ISharePointClient {
   getListItemById<T = any>(
     listTitle: string,
     id: number,
-    select?: string[]
+    select?: string[],
+    expand?: string[]
   ): Promise<T>
+
+  getListItems<T = any>(
+    listTitle: string,
+    options?: ListItemQueryOptions
+  ): Promise<T[]>
 
   // Attachments
   getItemAttachments(listTitle: string, itemId: number): Promise<AttachmentInfo[]>
