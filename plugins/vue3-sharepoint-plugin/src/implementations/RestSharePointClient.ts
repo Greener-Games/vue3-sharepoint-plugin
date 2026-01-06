@@ -246,6 +246,9 @@ export class RestSharePointClient implements ISharePointClient {
 
     let searchSelect = [
       'Title', 'Path', 'OriginalPath', 'UniqueId', 'HitHighlightedSummary',
+      'DefaultEncodingURL', // <--- Mapped to EncodedAbsUrl (The most reliable direct link)
+      'PictureURL', // <--- Specifically for images
+      'PictureThumbnailURL', // <--- Fallback for images
       ...userSelects.filter(f => !f.includes('/'))
     ]
 
@@ -289,11 +292,35 @@ export class RestSharePointClient implements ISharePointClient {
       const map: any = {}
       r.Cells.results.forEach((c: any) => (map[c.Key] = c.Value))
 
-      if (opts.includeRelativePath && map.Path) {
+            // We prioritize DefaultEncodingURL as it is the most standard direct link
+      let directUrl = [
+        map.DefaultEncodingURL,
+        map.PictureURL,
+        map.OriginalPath,
+        map.Path,
+      ].find((url) => url && !url.toLowerCase().includes('dispform.aspx'))
+
+      // If we have a filename in 'Title' and a 'Path', we can often swap out the Form part
+      if (!directUrl || directUrl.toLowerCase().includes('dispform.aspx')) {
+        const base = map.OriginalPath || map.Path || ''
+        if (base.includes('/Forms/DispForm.aspx')) {
+          const libraryPath = base.split('/Forms/')[0]
+          const fileName = map.Title || ''
+          if (fileName.includes('.')) {
+            directUrl = `${libraryPath}/${fileName}`
+          }
+        }
+      }
+
+      map.DirectLink = directUrl || map.Path
+      
+      if (opts.includeRelativePath && map.DirectLink) {
         try {
-          map.relativePath = decodeURIComponent(new URL(map.Path).pathname)
+          map.relativePath = decodeURIComponent(
+            new URL(map.DirectLink).pathname
+          )
         } catch {
-          map.relativePath = map.Path
+          map.relativePath = map.DirectLink
         }
       }
       return map
@@ -429,20 +456,24 @@ export class RestSharePointClient implements ISharePointClient {
       parts.push('*')
     }
 
-    if (opts.fileTypes?.include?.length) {
-      parts.push(
-          `(${opts.fileTypes.include
-              .map((e) => `FileExtension:${e}`)
-              .join(' OR ')})`
-      )
-    }
     if (opts.fileTypes?.exclude?.length) {
-      parts.push(
-          `(${opts.fileTypes.exclude
-              .map((e) => `NOT FileExtension:${e}`)
-              .join(' AND ')})`
-      )
+      opts.fileTypes.exclude.forEach((ext) => {
+        if (ext.toLowerCase() === 'aspx') {
+          // INSTEAD OF EXCLUDING .aspx EXTENSION:
+          // Exclude Site Pages and Wiki Pages specifically by ContentClass
+          // This keeps Images (which are usually STS_ListItem_Picture) visible.
+          parts.push('-contentclass:STS_ListItem_850') // Site Pages
+          parts.push('-contentclass:STS_ListItem_WebPageLibrary') // Wiki/Legacy Pages
+        } else {
+          // Use the minus operator for standard file types
+          parts.push(`-FileType:${ext}`);
+        }
+      });
     }
+    if (opts.fileTypes?.include?.length) {
+      parts.push(`(${opts.fileTypes.include.map(e => `FileType:${e}`).join(' OR ')})`);
+    }
+    
     if (opts.scope) {
       const scopes = Array.isArray(opts.scope) ? opts.scope : [opts.scope]
       let origin = ''
@@ -466,10 +497,10 @@ export class RestSharePointClient implements ISharePointClient {
 
     if (opts.resultType === 'items') {
       // Exclude Folders (0x0120 is Folder ContentType)
-      parts.push(`(NOT ContentTypeId:0x0120*)`)
+parts.push('-ContentTypeId:0x0120*')
     } else if (opts.resultType === 'folders') {
       // Only Folders
-      parts.push(`ContentTypeId:0x0120*`)
+      parts.push('ContentTypeId:0x0120*')
     }
 
     if (opts.filters) {
