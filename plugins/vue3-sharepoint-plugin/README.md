@@ -188,6 +188,10 @@ const results = await searchCtx.execute({
 #### 2. Advanced Search (Hydration) with Deep Mapping
 Fetches the underlying List Item to get data not in the search index (e.g., expanded User objects).
 
+**Key Concept: `searchSelect` vs `select`**
+*   **`searchSelect` (Search Index):** Fast, read-only "Managed Properties". Use this for the initial query criteria and basic display info (e.g. `Title`, `Path`, `RefinableString01`).
+*   **`select` (List Item):** The actual "Columns" in the list. Use this in the hydration step to get full details that the Search Index flattens or ignores (e.g. User Emails, Lookup ID/Values, Taxonomy Objects).
+
 ```typescript
 const results = await searchCtx.execute({
   query: 'ContentType:Document',
