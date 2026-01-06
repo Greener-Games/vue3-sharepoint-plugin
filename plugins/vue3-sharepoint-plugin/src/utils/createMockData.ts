@@ -1,5 +1,5 @@
-import { FileVersion, UserInfo, SiteGroup } from '../types'
-import { MockData } from '../implementations/MockSharePointClient'
+import type { FileVersion, UserInfo, SiteGroup } from '../types'
+import type { MockData } from '../implementations/MockSharePointClient'
 
 // --- 1. Export Constants ---
 export const MOCK_DIVISIONS = [
@@ -69,15 +69,15 @@ export function createMockDocument(
   versions: FileVersion[]
   serverRelativeUrl: string
 } {
-  const roleObj = getRandom(ROLES)
-  const division = getRandom(MOCK_DIVISIONS)
-  const status = getRandom(MOCK_STATUSES)
-
   // 1. Pick a Random Owner from our defined user pool
-  const ownerUser = getRandom(allUsers)
+  const ownerUser = getRandom(allUsers)!
 
   // 2. Determine Line Manager based on the user's structure
   const managerEmail = ownerUser.ReportsToEmail || 'ceo@local'
+
+  const roleObj = getRandom(ROLES)!
+  const division = getRandom(MOCK_DIVISIONS)!
+  const status = getRandom(MOCK_STATUSES)!
 
   const fileName = `${roleObj.title}_${id}.${roleObj.ext}`
   const siteUrl = baseUrl.replace(/\/$/, '')

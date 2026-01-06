@@ -1,5 +1,5 @@
-import { App } from 'vue'
-import { ISharePointClient } from './types'
+import type { App } from 'vue'
+import type { ISharePointClient } from './types'
 
 // Export Types
 export * from './types'

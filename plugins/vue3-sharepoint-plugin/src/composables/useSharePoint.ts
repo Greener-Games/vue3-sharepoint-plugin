@@ -1,9 +1,9 @@
 import { inject, ref } from 'vue'
 import {
-  ISharePointClient,
+  type ISharePointClient,
   PermissionKind,
-  SPBasePermissions,
-  UserInfo,
+  type SPBasePermissions,
+  type UserInfo,
 } from '../types'
 import { useSearch } from './useSearch'
 import { SP_CLIENT_SYMBOL } from '../index'
@@ -93,6 +93,7 @@ export function useSharePoint() {
     updateItem: client.updateListItem.bind(client),
     deleteItem: client.deleteListItem.bind(client),
     getItem: client.getListItemById.bind(client),
+    getItems: client.getListItems.bind(client),
 
     // Attachments
     getAttachments: client.getItemAttachments.bind(client),

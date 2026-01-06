@@ -160,9 +160,73 @@ Performs a search query. This updates `searchCtx.results`.
 | `includeRelativePath` | `boolean` | No | `false` | If true, adds `relativePath` property to results (derived from `Path`). |
 | `fileTypes` | `{ include?: string[], exclude?: string[] }` | No | - | Filter by file extension. e.g. `{ include: ['pdf'] }`. |
 | `filters` | `Record<string, any>` | No | - | Faceted filters (Array=OR, String=AND). |
-| `mapping` | `Record<string, string>` | No | - | Maps internal SharePoint Managed Properties to friendly names. |
-| `selectFields` | `string[]` | No | - | Specific fields to request from API to reduce payload size. |
+| `mapping` | `Record<string, string>` | No | - | Maps internal SharePoint Managed Properties to friendly names. Supports deep mapping (e.g. `'Author.Title': 'owner.name'`). |
+| `selectFields` | `string[]` | No | - | Fields to request. The plugin intelligently splits these between Search Index (managed props) and List Item (columns). |
+| `expandFields` | `string[]` | No | - | **Triggers Hydration.** Fields to expand (e.g. `['Author']`). When present, list items are fetched. |
 | `searchTitleOnly`| `boolean`| No | `false` | If `true`, searches `Title` property only. |
+
+### 🚀 Advanced Search & Hydration
+
+You can perform **Hydration** (fetching the actual list item for each search result) to access expanded fields like User details or Lookup values.
+
+#### 1. Standard Search
+Just gets properties from the Search Index. Fast and simple.
+
+```typescript
+const results = await searchCtx.execute({
+  query: 'ContentType:Document',
+  selectFields: ['Title', 'Path', 'Author', 'Created'],
+
+  mapping: {
+    'Path': 'url',
+    'Created': 'date'
+  }
+})
+```
+
+#### 2. Advanced Search (Hydration) with Deep Mapping
+Fetches the underlying List Item to get data not in the search index (e.g., expanded User objects).
+
+**How it works:**
+*   Add **`expandFields`** to trigger hydration.
+*   Put **ALL** desired fields in **`selectFields`**. The plugin automatically routes them:
+    *   **Search Index:** Gets standard properties + anything looking like a Managed Property.
+    *   **List Item:** Gets columns + expanded fields (anything with `/`).
+
+```typescript
+const results = await searchCtx.execute({
+  query: 'ContentType:Document',
+
+  // 1. List EVERYTHING you want
+  selectFields: [
+    'Title', 'Path', 'HitHighlightedSummary', // Search Props
+    'Author/Title', 'Author/Email',           // List Expansions (auto-routed to List)
+    'Department/Title'
+  ],
+
+  // 2. Trigger Hydration
+  expandFields: ['Author', 'Department'],
+
+  // 3. Deep Mapping
+  mapping: {
+    'Path': 'document.url',           // Map standard prop
+    'Author.Title': 'meta.owner',     // Map hydrated prop to nested object
+    'Department.Title': 'meta.dept'
+  }
+})
+
+/* Result Structure:
+{
+  Title: "...",
+  HitHighlightedSummary: "<b>...</b>",
+  document: { url: "..." },
+  meta: {
+    owner: "John Doe",
+    dept: "IT"
+  }
+}
+*/
+```
 
 ---
 
@@ -204,13 +268,21 @@ await updateItem('Tasks', newItem.Id, { Status: 'Active' })
 | `listTitle` | `string` | The display name of the list. |
 | `id` | `number` | The integer ID of the item to recycle. |
 
-**`getItem(listTitle, id, select?)`**
+**`getItem(listTitle, id, select?, expand?)`**
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `listTitle` | `string` | The display name of the list. |
 | `id` | `number` | The integer ID of the item. |
 | `select` | `string[]` | (Optional) Array of specific column names to fetch. |
+| `expand` | `string[]` | (Optional) Array of columns to expand (e.g. `['Author']`). |
+
+**`getItems(listTitle, options?)`**
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `listTitle` | `string` | The display name of the list. |
+| `options` | `ListItemQueryOptions` | Object containing `select`, `expand`, `filter`, `top`, `orderBy`. |
 
 ---
 

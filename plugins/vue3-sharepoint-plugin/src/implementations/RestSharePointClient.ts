@@ -1,5 +1,6 @@
-import {
+import type {
   ISharePointClient,
+  ListItemQueryOptions,
   SearchRequestOptions,
   SearchResult,
   SharePointConfig,
@@ -112,7 +113,7 @@ export class RestSharePointClient implements ISharePointClient {
           (typeof Buffer !== 'undefined' && Buffer.isBuffer(body))
 
       fetchOptions.body =
-          isBinary || typeof body === 'string' ? body : JSON.stringify(body)
+          (isBinary || typeof body === 'string' ? body : JSON.stringify(body)) as BodyInit
     }
 
     this.logger.log(`Request: ${method} ${fullUrl}`, body ? { body } : '')
@@ -239,20 +240,33 @@ export class RestSharePointClient implements ISharePointClient {
     const kql = this.buildKql(opts)
     this.logger.log(`Search KQL: ${kql}`)
 
-    const select = opts.selectFields || [
-      'Title',
-      'Path',
-      'OriginalPath',
-      'UniqueId',
-      'HitHighlightedSummary',
-      ...Object.keys(opts.mapping || {}),
+    const userSelects = opts.selectFields || []
+    const userExpands = opts.expandFields || []
+    const needsHydration = userExpands.length > 0 || userSelects.some(f => f.includes('/'))
+
+    let searchSelect = [
+      'Title', 'Path', 'OriginalPath', 'UniqueId', 'HitHighlightedSummary',
+      ...userSelects.filter(f => !f.includes('/'))
     ]
+
+    if (opts.mapping) {
+      searchSelect = [...searchSelect, ...Object.keys(opts.mapping).filter(k => !k.includes('/'))]
+    }
+
+    if (needsHydration) {
+      if (!searchSelect.includes('ListId')) searchSelect.push('ListId')
+      if (!searchSelect.includes('ListItemId')) searchSelect.push('ListItemId')
+    }
+
+    // Dedupe
+    searchSelect = [...new Set(searchSelect)]
+
     const payload = {
       request: {
         Querytext: kql,
         RowLimit: opts.rowLimit || 10,
         StartRow: opts.startRow || 0,
-        SelectProperties: { results: select },
+        SelectProperties: { results: searchSelect },
         HitHighlightedProperties: { results: ['Contents', 'Title'] },
         SummaryLength: 250,
         EnableStemming: true,
@@ -271,7 +285,7 @@ export class RestSharePointClient implements ISharePointClient {
     const rows =
         data.d.postquery.PrimaryQueryResult.RelevantResults.Table.Rows.results
 
-    const items = rows.map((r: any) => {
+    let items = rows.map((r: any) => {
       const map: any = {}
       r.Cells.results.forEach((c: any) => (map[c.Key] = c.Value))
 
@@ -282,16 +296,65 @@ export class RestSharePointClient implements ISharePointClient {
           map.relativePath = map.Path
         }
       }
-
-      if (opts.mapping) {
-        const out: any = {}
-        Object.entries(opts.mapping).forEach(([k, v]) => (out[v] = map[k]))
-        if (!out.url) out.url = map.Path
-        if (opts.includeRelativePath) out.relativePath = map.relativePath
-        return out
-      }
       return map
     })
+
+    // Hydration
+    if (needsHydration && items.length > 0) {
+      const listSelect = userSelects.filter(f => !this.isSearchOnlyProp(f))
+
+      await Promise.all(items.map(async (item: any) => {
+          if (item.ListId && item.ListItemId) {
+            try {
+              const params: string[] = []
+              if (listSelect.length > 0) params.push(`$select=${listSelect.join(',')}`)
+              if (userExpands.length > 0) params.push(`$expand=${userExpands.join(',')}`)
+              const qs = params.length > 0 ? `?${params.join('&')}` : ''
+
+              const hydrated = await this.request(`/_api/web/lists/getById('${item.ListId}')/items(${item.ListItemId})${qs}`)
+              if (hydrated) {
+                Object.assign(item, hydrated)
+              }
+            } catch { /* ignore */ }
+          }
+      }))
+    }
+
+    if (opts.mapping) {
+        items = items.map((map: any) => {
+          const out: any = {}
+          Object.entries(opts.mapping!).forEach(([k, v]) => {
+            // 1. Get Value from Source
+            let val = map
+            if (k.includes('.')) {
+              const parts = k.split('.')
+              for (const p of parts) {
+                val = val ? val[p] : null
+              }
+            } else {
+              val = map[k]
+            }
+
+            // 2. Assign Value to Destination
+            if (v.includes('.')) {
+              const parts = v.split('.')
+              let current = out
+              for (let i = 0; i < parts.length - 1; i++) {
+                const part = parts[i]
+                if (!current[part]) current[part] = {}
+                current = current[part]
+              }
+              current[parts[parts.length - 1]] = val
+            } else {
+              out[v] = val
+            }
+          })
+          if (!out.url) out.url = map.Path
+          if (opts.includeRelativePath) out.relativePath = map.relativePath
+          return out
+        })
+    }
+
     return {
       items,
       totalHits: data.d.postquery.PrimaryQueryResult.RelevantResults.TotalRows,
@@ -458,10 +521,48 @@ export class RestSharePointClient implements ISharePointClient {
     })
   }
 
-  async getListItemById(list: string, id: number, select?: string[]) {
-    const q = select ? `?$select=${select.join(',')}` : ''
+  async getListItemById(
+    list: string,
+    id: number,
+    select?: string[],
+    expand?: string[]
+  ) {
+    const params: string[] = []
+    if (select && select.length > 0) params.push(`$select=${select.join(',')}`)
+    if (expand && expand.length > 0) params.push(`$expand=${expand.join(',')}`)
+
+    const q = params.length > 0 ? `?${params.join('&')}` : ''
     return await this.request(
-        `/_api/web/lists/getbytitle('${list}')/items(${id})${q}`
+      `/_api/web/lists/getbytitle('${list}')/items(${id})${q}`
+    )
+  }
+
+  async getListItems<T = any>(
+    listTitle: string,
+    options?: ListItemQueryOptions
+  ): Promise<T[]> {
+    const params: string[] = []
+
+    if (options?.select && options.select.length > 0) {
+      params.push(`$select=${options.select.join(',')}`)
+    }
+    if (options?.expand && options.expand.length > 0) {
+      params.push(`$expand=${options.expand.join(',')}`)
+    }
+    if (options?.filter) {
+      params.push(`$filter=${encodeURIComponent(options.filter)}`)
+    }
+    if (options?.top) {
+      params.push(`$top=${options.top}`)
+    }
+    if (options?.orderBy) {
+      const dir = options.ascending === false ? 'desc' : 'asc'
+      params.push(`$orderby=${options.orderBy} ${dir}`)
+    }
+
+    const q = params.length > 0 ? `?${params.join('&')}` : ''
+    return await this.request(
+      `/_api/web/lists/getbytitle('${listTitle}')/items${q}`
     )
   }
 
@@ -851,5 +952,10 @@ export class RestSharePointClient implements ISharePointClient {
     }/_layouts/15/Versions.aspx?FileName=${encodeURIComponent(
         serverRelativeUrl
     )}`
+  }
+
+  private isSearchOnlyProp(field: string): boolean {
+    const searchOnlyPattern = /^(Refinable|HitHighlighted|Path$|OriginalPath$|Rank$|DocId$|WorkId$|Piw)/i
+    return searchOnlyPattern.test(field)
   }
 }

@@ -1,9 +1,9 @@
-import {
+import type {
   EmailProperties,
-  FieldDefinition,
   FileVersion,
   IBatch,
   ISharePointClient,
+  ListItemQueryOptions,
   SearchRequestOptions,
   SearchResult,
   SiteGroup,
@@ -240,12 +240,12 @@ export class MockSharePointClient implements ISharePointClient {
       })
     }
 
-    // --- STEP 5: Pagination & Mapping ---
+    // --- STEP 5: Pagination & Hydration & Mapping ---
     const totalHits = allItems.length
     const start = opts.startRow || 0
     const limit = opts.rowLimit || 10
 
-    const mappedItems = allItems.slice(start, start + limit).map(item => {
+    let items = allItems.slice(start, start + limit).map(item => {
       const map: any = { ...item }
 
       if (opts.includeRelativePath && map.Path) {
@@ -255,19 +255,53 @@ export class MockSharePointClient implements ISharePointClient {
           map.relativePath = map.Path
         }
       }
-
-      if (!opts.mapping) return map
-
-      const newItem: any = { ...item }
-      Object.entries(opts.mapping).forEach(([spKey, friendly]) => {
-        newItem[friendly] = item[spKey]
-      })
-      if (!newItem.url) newItem.url = item.Path
-      if (opts.includeRelativePath) newItem.relativePath = map.relativePath
-      return newItem
+      return map
     })
 
-    return { items: mappedItems as T[], totalHits, startRow: start }
+    // Hydration (Mock - just merging, as we already have full objects in Mock lists usually)
+    // But if we want to simulate expand, we might need to do something.
+    // For now, we assume the Mock Data objects already contain all info or we can ignore expand.
+    if (opts.expandFields) {
+       // Pass (No-op for Mock unless we want to simulate partial objects first)
+    }
+
+    // Mapping
+    if (opts.mapping) {
+      items = items.map((map: any) => {
+        const out: any = {}
+        Object.entries(opts.mapping!).forEach(([k, v]) => {
+          // 1. Get Value from Source
+          let val = map
+          if (k.includes('.')) {
+            const parts = k.split('.')
+            for (const p of parts) {
+              val = val ? val[p] : null
+            }
+          } else {
+            val = map[k]
+          }
+
+          // 2. Assign Value to Destination
+          if (v.includes('.')) {
+            const parts = v.split('.')
+            let current = out
+            for (let i = 0; i < parts.length - 1; i++) {
+              const part = parts[i]
+              if (!current[part]) current[part] = {}
+              current = current[part]
+            }
+            current[parts[parts.length - 1]] = val
+          } else {
+            out[v] = val
+          }
+        })
+        if (!out.url) out.url = map.Path
+        if (opts.includeRelativePath) out.relativePath = map.relativePath
+        return out
+      })
+    }
+
+    return { items: items as T[], totalHits, startRow: start }
   }
 
   // --- 2. UTILITIES & PERMISSIONS ---
@@ -320,11 +354,12 @@ export class MockSharePointClient implements ISharePointClient {
     }
 
     // Add to userGroups map
-    if (!this.data.userGroups![user.Email]) {
-      this.data.userGroups![user.Email] = []
+    const groupsMap = this.data.userGroups || (this.data.userGroups = {})
+    if (!groupsMap[user.Email]) {
+      groupsMap[user.Email] = []
     }
-    if (!this.data.userGroups![user.Email].find(g => g.Title === groupName)) {
-      this.data.userGroups![user.Email].push(group)
+    if (!groupsMap[user.Email].find(g => g.Title === groupName)) {
+      groupsMap[user.Email].push(group)
     }
     this.logger.log(`Added ${loginName} to group ${groupName}`)
   }
@@ -335,9 +370,14 @@ export class MockSharePointClient implements ISharePointClient {
     const user = this.data.siteUsers?.find(u => u.LoginName === loginName || u.Email === loginName)
     if (!user) return
 
-    const groups = this.data.userGroups![user.Email]
-    if (groups) {
-      this.data.userGroups![user.Email] = groups.filter(g => g.Title !== groupName)
+    const userGroups = this.data.userGroups
+    if (userGroups) {
+      // @ts-ignore
+      const groups = userGroups[user.Email]
+      if (groups) {
+        // @ts-ignore
+        userGroups[user.Email] = groups.filter(g => g.Title !== groupName)
+      }
     }
     this.logger.log(`Removed ${loginName} from group ${groupName}`)
   }
@@ -411,7 +451,7 @@ export class MockSharePointClient implements ISharePointClient {
       targetUrl = `${this.data.webInfo!.Url}/${url}`
     }
 
-    const f = this.data.files![targetUrl]
+    const f = this.data.files?.[targetUrl]
     if (!f) throw new Error('File not found')
     return typeof f === 'string' ? new Blob([f]) : f
   }
@@ -421,30 +461,74 @@ export class MockSharePointClient implements ISharePointClient {
     builder({} as any)
   }
   async createListItem(list: string, payload: any) {
-    if (!this.data.lists![list]) this.data.lists![list] = []
+    const allLists = this.data.lists || (this.data.lists = {})
+    if (!allLists[list]) allLists[list] = []
     const newItem = { Id: Math.floor(Math.random() * 1000), ...payload }
-    this.data.lists![list].push(newItem)
+    allLists[list].push(newItem)
     return newItem
   }
   async updateListItem(list: string, id: number, payload: any) {
     this.logger.log(`Update ${list} #${id}`, payload)
-    const item = this.data.lists![list]?.find(i => i.Id === id)
+    const item = this.data.lists?.[list]?.find(i => i.Id === id)
     if (item) Object.assign(item, payload)
   }
   async deleteListItem(list: string, id: number) {
     this.logger.log(`Delete ${list} #${id}`)
-    if (this.data.lists![list]) {
-      this.data.lists![list] = this.data.lists![list].filter(i => i.Id !== id)
+    const lists = this.data.lists
+    if (lists && lists[list]) {
+      lists[list] = lists[list].filter(i => i.Id !== id)
     }
   }
-  async getListItemById(list: string, id: number) {
-    return this.data.lists![list]?.find((i) => i.Id === id)
+  async getListItemById(
+    list: string,
+    id: number,
+    _select?: string[],
+    _expand?: string[]
+  ) {
+    return this.data.lists?.[list]?.find((i) => i.Id === id)
+  }
+
+  async getListItems<T = any>(
+    listTitle: string,
+    options?: ListItemQueryOptions
+  ): Promise<T[]> {
+    await this.wait()
+    const allItems = this.data.lists?.[listTitle] || []
+    let result = [...allItems]
+
+    // 1. Filter
+    if (options?.filter) {
+      // Very basic filter simulation
+      // We assume simple 'Field eq Value' or similar
+      // Implementing a full OData parser is out of scope for Mock
+      // This is a placeholder that returns everything or could be enhanced
+    }
+
+    // 2. Order By
+    if (options?.orderBy) {
+      result.sort((a, b) => {
+        const valA = a[options.orderBy!]
+        const valB = b[options.orderBy!]
+        if (valA < valB) return options.ascending === false ? 1 : -1
+        if (valA > valB) return options.ascending === false ? -1 : 1
+        return 0
+      })
+    }
+
+    // 3. Top
+    if (options?.top) {
+      result = result.slice(0, options.top)
+    }
+
+    return result as T[]
   }
   async updateFileMetadata(url: string, payload: any) {
     this.logger.log(`Update Meta ${url}`, payload)
   }
   async deleteFile(url: string) {
-    delete this.data.files![url]
+    if (this.data.files) {
+      delete this.data.files[url]
+    }
   }
   async createFolder(url: string) {
     this.logger.log(`Create Folder ${url}`)
@@ -500,9 +584,15 @@ export class MockSharePointClient implements ISharePointClient {
     return found
   }
 
-  async createList(title: string, description?: string, template?: number): Promise<ListInfo> {
+  async createList(title: string, description?: string, _template?: number): Promise<ListInfo> {
     await this.wait()
-    this.data.lists![title] = []
+    if (!this.data.lists) {
+      this.data.lists = {}
+    }
+    // @ts-ignore
+    const lists = this.data.lists
+    lists[title] = []
+
     const info = {
       Id: `mock-list-${Date.now()}`,
       Title: title,
@@ -518,19 +608,21 @@ export class MockSharePointClient implements ISharePointClient {
 
   async deleteList(title: string): Promise<void> {
     await this.wait()
-    delete this.data.lists![title]
+    if (this.data.lists) {
+      delete this.data.lists[title]
+    }
     if (this.data.listsInfo) {
       this.data.listsInfo = this.data.listsInfo.filter(l => l.Title !== title)
     }
   }
 
   // --- 6. ATTACHMENTS ---
-  async getItemAttachments(listTitle: string, itemId: number): Promise<AttachmentInfo[]> {
+  async getItemAttachments(_listTitle: string, _itemId: number): Promise<AttachmentInfo[]> {
     // Mock implementation: return empty or fake attachments
     return []
   }
 
-  async addAttachment(listTitle: string, itemId: number, fileName: string, file: Blob | ArrayBuffer): Promise<void> {
+  async addAttachment(listTitle: string, itemId: number, fileName: string, _file: Blob | ArrayBuffer): Promise<void> {
     this.logger.log(`Added attachment ${fileName} to ${listTitle} item ${itemId}`)
   }
 
