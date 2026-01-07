@@ -80,14 +80,14 @@ export class RestSharePointClient implements ISharePointClient {
 
   // --- Centralized Request Handler ---
   private async request<T = any>(
-      endpoint: string,
-      options: {
-        method?: string
-        body?: any
-        headers?: Record<string, string>
-        isWrite?: boolean
-        skipMetadata?: boolean // If true, doesn't unwrap .d or .d.results
-      } = {}
+    endpoint: string,
+    options: {
+      method?: string
+      body?: any
+      headers?: Record<string, string>
+      isWrite?: boolean
+      skipMetadata?: boolean // If true, doesn't unwrap .d or .d.results
+    } = {}
   ): Promise<T> {
     const { method = 'GET', body, isWrite = false } = options
 
@@ -97,8 +97,8 @@ export class RestSharePointClient implements ISharePointClient {
     }
 
     const fullUrl = endpoint.startsWith('http')
-        ? endpoint
-        : `${this.baseUrl}${endpoint}`
+      ? endpoint
+      : `${this.baseUrl}${endpoint}`
 
     const fetchOptions: RequestInit = {
       method,
@@ -108,12 +108,13 @@ export class RestSharePointClient implements ISharePointClient {
     if (body) {
       // Check for Blob or ArrayBuffer to avoid JSON stringification
       const isBinary =
-          body instanceof Blob ||
-          body instanceof ArrayBuffer ||
-          (typeof Buffer !== 'undefined' && Buffer.isBuffer(body))
+        body instanceof Blob ||
+        body instanceof ArrayBuffer ||
+        (typeof Buffer !== 'undefined' && Buffer.isBuffer(body))
 
-      fetchOptions.body =
-          (isBinary || typeof body === 'string' ? body : JSON.stringify(body)) as BodyInit
+      fetchOptions.body = (
+        isBinary || typeof body === 'string' ? body : JSON.stringify(body)
+      ) as BodyInit
     }
 
     this.logger.log(`Request: ${method} ${fullUrl}`, body ? { body } : '')
@@ -123,11 +124,11 @@ export class RestSharePointClient implements ISharePointClient {
     if (!response.ok) {
       const errorText = await response.text()
       this.logger.error(
-          `Request Failed: ${response.status} ${response.statusText}`,
-          errorText
+        `Request Failed: ${response.status} ${response.statusText}`,
+        errorText
       )
       throw new Error(
-          `SharePoint Request Failed: ${method} ${endpoint} - ${response.status} ${response.statusText}\n${errorText}`
+        `SharePoint Request Failed: ${method} ${endpoint} - ${response.status} ${response.statusText}\n${errorText}`
       )
     }
 
@@ -208,11 +209,11 @@ export class RestSharePointClient implements ISharePointClient {
       body += `${req.method} ${fullUrl} HTTP/1.1\r\nAccept: application/json;odata=verbose\r\n`
       if (req.headers)
         Object.entries(req.headers).forEach(
-            ([k, v]) => (body += `${k}: ${v}\r\n`)
+          ([k, v]) => (body += `${k}: ${v}\r\n`)
         )
       if (req.body) {
         body += `Content-Type: application/json;odata=verbose\r\n\r\n${JSON.stringify(
-            req.body
+          req.body
         )}\r\n`
       } else {
         body += `\r\n`
@@ -242,18 +243,26 @@ export class RestSharePointClient implements ISharePointClient {
 
     const userSelects = opts.selectFields || []
     const userExpands = opts.expandFields || []
-    const needsHydration = userExpands.length > 0 || userSelects.some(f => f.includes('/'))
+    const needsHydration =
+      userExpands.length > 0 || userSelects.some((f) => f.includes('/'))
 
     let searchSelect = [
-      'Title', 'Path', 'OriginalPath', 'UniqueId', 'HitHighlightedSummary',
+      'Title',
+      'Path',
+      'OriginalPath',
+      'UniqueId',
+      'HitHighlightedSummary',
       'DefaultEncodingURL', // <--- Mapped to EncodedAbsUrl (The most reliable direct link)
       'PictureURL', // <--- Specifically for images
       'PictureThumbnailURL', // <--- Fallback for images
-      ...userSelects.filter(f => !f.includes('/'))
+      ...userSelects.filter((f) => !f.includes('/')),
     ]
 
     if (opts.mapping) {
-      searchSelect = [...searchSelect, ...Object.keys(opts.mapping).filter(k => !k.includes('/'))]
+      searchSelect = [
+        ...searchSelect,
+        ...Object.keys(opts.mapping).filter((k) => !k.includes('/')),
+      ]
     }
 
     if (needsHydration) {
@@ -286,13 +295,13 @@ export class RestSharePointClient implements ISharePointClient {
     })
 
     const rows =
-        data.d.postquery.PrimaryQueryResult.RelevantResults.Table.Rows.results
+      data.d.postquery.PrimaryQueryResult.RelevantResults.Table.Rows.results
 
     let items = rows.map((r: any) => {
       const map: any = {}
       r.Cells.results.forEach((c: any) => (map[c.Key] = c.Value))
 
-            // We prioritize DefaultEncodingURL as it is the most standard direct link
+      // We prioritize DefaultEncodingURL as it is the most standard direct link
       let directUrl = [
         map.DefaultEncodingURL,
         map.PictureURL,
@@ -313,7 +322,7 @@ export class RestSharePointClient implements ISharePointClient {
       }
 
       map.DirectLink = directUrl || map.Path
-      
+
       if (opts.includeRelativePath && map.DirectLink) {
         try {
           map.relativePath = decodeURIComponent(
@@ -328,58 +337,66 @@ export class RestSharePointClient implements ISharePointClient {
 
     // Hydration
     if (needsHydration && items.length > 0) {
-      const listSelect = userSelects.filter(f => !this.isSearchOnlyProp(f))
+      const listSelect = userSelects.filter((f) => !this.isSearchOnlyProp(f))
 
-      await Promise.all(items.map(async (item: any) => {
+      await Promise.all(
+        items.map(async (item: any) => {
           if (item.ListId && item.ListItemId) {
             try {
               const params: string[] = []
-              if (listSelect.length > 0) params.push(`$select=${listSelect.join(',')}`)
-              if (userExpands.length > 0) params.push(`$expand=${userExpands.join(',')}`)
+              if (listSelect.length > 0)
+                params.push(`$select=${listSelect.join(',')}`)
+              if (userExpands.length > 0)
+                params.push(`$expand=${userExpands.join(',')}`)
               const qs = params.length > 0 ? `?${params.join('&')}` : ''
 
-              const hydrated = await this.request(`/_api/web/lists/getById('${item.ListId}')/items(${item.ListItemId})${qs}`)
+              const hydrated = await this.request(
+                `/_api/web/lists/getById('${item.ListId}')/items(${item.ListItemId})${qs}`
+              )
               if (hydrated) {
                 Object.assign(item, hydrated)
               }
-            } catch { /* ignore */ }
+            } catch {
+              /* ignore */
+            }
           }
-      }))
+        })
+      )
     }
 
     if (opts.mapping) {
-        items = items.map((map: any) => {
-          const out: any = {}
-          Object.entries(opts.mapping!).forEach(([k, v]) => {
-            // 1. Get Value from Source
-            let val = map
-            if (k.includes('.')) {
-              const parts = k.split('.')
-              for (const p of parts) {
-                val = val ? val[p] : null
-              }
-            } else {
-              val = map[k]
+      items = items.map((map: any) => {
+        const out: any = {}
+        Object.entries(opts.mapping!).forEach(([k, v]) => {
+          // 1. Get Value from Source
+          let val = map
+          if (k.includes('.')) {
+            const parts = k.split('.')
+            for (const p of parts) {
+              val = val ? val[p] : null
             }
+          } else {
+            val = map[k]
+          }
 
-            // 2. Assign Value to Destination
-            if (v.includes('.')) {
-              const parts = v.split('.')
-              let current = out
-              for (let i = 0; i < parts.length - 1; i++) {
-                const part = parts[i]
-                if (!current[part]) current[part] = {}
-                current = current[part]
-              }
-              current[parts[parts.length - 1]] = val
-            } else {
-              out[v] = val
+          // 2. Assign Value to Destination
+          if (v.includes('.')) {
+            const parts = v.split('.')
+            let current = out
+            for (let i = 0; i < parts.length - 1; i++) {
+              const part = parts[i]
+              if (!current[part]) current[part] = {}
+              current = current[part]
             }
-          })
-          if (!out.url) out.url = map.Path
-          if (opts.includeRelativePath) out.relativePath = map.relativePath
-          return out
+            current[parts[parts.length - 1]] = val
+          } else {
+            out[v] = val
+          }
         })
+        if (!out.url) out.url = map.Path
+        if (opts.includeRelativePath) out.relativePath = map.relativePath
+        return out
+      })
     }
 
     return {
@@ -407,7 +424,7 @@ export class RestSharePointClient implements ISharePointClient {
     if (cached) return cached
 
     const data = await this.request<any[]>(
-        `/_api/web/lists/getbytitle('${list}')/fields?$filter=Hidden eq false`
+      `/_api/web/lists/getbytitle('${list}')/fields?$filter=Hidden eq false`
     )
 
     const mapped = data.map((f: any) => ({
@@ -428,7 +445,7 @@ export class RestSharePointClient implements ISharePointClient {
     if (cached) return cached
 
     const data = await this.request<any>(
-        `/_api/web/lists/getbytitle('${list}')/fields/getByInternalNameOrTitle('${field}')`
+      `/_api/web/lists/getbytitle('${list}')/fields/getByInternalNameOrTitle('${field}')`
     )
 
     const choices = data.Choices?.results || []
@@ -449,7 +466,7 @@ export class RestSharePointClient implements ISharePointClient {
       } else {
         // Logic for "Everything" search (Title, Name, and Content)
         parts.push(
-            `(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*" OR ${escapedTxt}*)`
+          `(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*" OR ${escapedTxt}*)`
         )
       }
     } else {
@@ -466,14 +483,16 @@ export class RestSharePointClient implements ISharePointClient {
           parts.push('-contentclass:STS_ListItem_WebPageLibrary') // Wiki/Legacy Pages
         } else {
           // Use the minus operator for standard file types
-          parts.push(`-FileType:${ext}`);
+          parts.push(`-FileType:${ext}`)
         }
-      });
+      })
     }
     if (opts.fileTypes?.include?.length) {
-      parts.push(`(${opts.fileTypes.include.map(e => `FileType:${e}`).join(' OR ')})`);
+      parts.push(
+        `(${opts.fileTypes.include.map((e) => `FileType:${e}`).join(' OR ')})`
+      )
     }
-    
+
     if (opts.scope) {
       const scopes = Array.isArray(opts.scope) ? opts.scope : [opts.scope]
       let origin = ''
@@ -496,8 +515,16 @@ export class RestSharePointClient implements ISharePointClient {
     }
 
     if (opts.resultType === 'items') {
-      // Exclude Folders (0x0120 is Folder ContentType)
-parts.push('-ContentTypeId:0x0120*')
+      // 1. Exclude Folders (0x0120)
+      parts.push('-ContentTypeId:0x0120*')
+
+      // 2. Exclude the Library/List containers themselves
+      // STS_List_* catches STS_List_DocumentLibrary, STS_List_Links, etc.
+      parts.push('-contentclass:STS_List_*')
+
+      // 3. (Optional but recommended) Exclude the Site and Web objects
+      parts.push('-contentclass:STS_Web')
+      parts.push('-contentclass:STS_Site')
     } else if (opts.resultType === 'folders') {
       // Only Folders
       parts.push('ContentTypeId:0x0120*')
@@ -509,7 +536,7 @@ parts.push('-ContentTypeId:0x0120*')
         let mp = key
         if (opts.mapping) {
           const found = Object.keys(opts.mapping).find(
-              (k) => opts.mapping![k] === key
+            (k) => opts.mapping![k] === key
           )
           if (found) mp = found
         }
@@ -598,11 +625,11 @@ parts.push('-ContentTypeId:0x0120*')
   }
 
   async getItemAttachments(
-      list: string,
-      id: number
+    list: string,
+    id: number
   ): Promise<AttachmentInfo[]> {
     const results = await this.request<any[]>(
-        `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles`
+      `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles`
     )
     return results.map((a) => ({
       FileName: a.FileName,
@@ -611,58 +638,58 @@ parts.push('-ContentTypeId:0x0120*')
   }
 
   async addAttachment(
-      list: string,
-      id: number,
-      fileName: string,
-      file: Blob | ArrayBuffer
+    list: string,
+    id: number,
+    fileName: string,
+    file: Blob | ArrayBuffer
   ): Promise<void> {
     // For binary upload, we need to ensure Content-Type is not application/json
     await this.request(
-        `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles/add(FileName='${fileName}')`,
-        {
-          method: 'POST',
-          body: file,
-          isWrite: true,
-          headers: {
-            // Overwriting Content-Type to undefined or null isn't standard in Headers object interaction
-            // but we can set it to application/octet-stream or rely on fetch logic if we handled headers map better.
-            // In request() helper, we merge headers. If we pass a header that conflicts, we need to ensure it wins.
-            'Content-Type': 'application/octet-stream',
-          },
-        }
+      `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles/add(FileName='${fileName}')`,
+      {
+        method: 'POST',
+        body: file,
+        isWrite: true,
+        headers: {
+          // Overwriting Content-Type to undefined or null isn't standard in Headers object interaction
+          // but we can set it to application/octet-stream or rely on fetch logic if we handled headers map better.
+          // In request() helper, we merge headers. If we pass a header that conflicts, we need to ensure it wins.
+          'Content-Type': 'application/octet-stream',
+        },
+      }
     )
   }
 
   async deleteAttachment(
-      list: string,
-      id: number,
-      fileName: string
+    list: string,
+    id: number,
+    fileName: string
   ): Promise<void> {
     await this.request(
-        `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles/getByFileName('${fileName}')`,
-        {
-          method: 'POST',
-          headers: {
-            'X-HTTP-Method': 'DELETE',
-            'IF-MATCH': '*',
-          },
-          isWrite: true,
-        }
+      `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles/getByFileName('${fileName}')`,
+      {
+        method: 'POST',
+        headers: {
+          'X-HTTP-Method': 'DELETE',
+          'IF-MATCH': '*',
+        },
+        isWrite: true,
+      }
     )
   }
 
   async uploadFile(url: string, name: string, file: any) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
     const data = await this.request<any>(
-        `/_api/web/getfolderbyserverrelativeurl('${fullUrl}')/files/add(url='${name}', overwrite=true)`,
-        {
-          method: 'POST',
-          body: file,
-          headers: {
-            'Content-Type': 'application/octet-stream',
-          },
-          isWrite: true,
-        }
+      `/_api/web/getfolderbyserverrelativeurl('${fullUrl}')/files/add(url='${name}', overwrite=true)`,
+      {
+        method: 'POST',
+        body: file,
+        headers: {
+          'Content-Type': 'application/octet-stream',
+        },
+        isWrite: true,
+      }
     )
     return data.ServerRelativeUrl
   }
@@ -674,8 +701,8 @@ parts.push('-ContentTypeId:0x0120*')
     // However, downloadFile logic is simple enough.
     const headers = await this.getHeaders(false)
     const res = await fetch(
-        `${this.baseUrl}/_api/web/getfilebyserverrelativeurl('${fullUrl}')/$value`,
-        { headers }
+      `${this.baseUrl}/_api/web/getfilebyserverrelativeurl('${fullUrl}')/$value`,
+      { headers }
     )
     return await res.blob()
   }
@@ -684,7 +711,7 @@ parts.push('-ContentTypeId:0x0120*')
     const fullUrl = getServerRelativePath(url, this.baseUrl)
     // 1. Get List Item URI
     const meta = await this.request<any>(
-        `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/ListItemAllFields`
+      `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/ListItemAllFields`
     )
     const uri = meta.__metadata.uri
     const type = meta.__metadata.type
@@ -760,7 +787,7 @@ parts.push('-ContentTypeId:0x0120*')
 
   async getList(listTitle: string): Promise<ListInfo> {
     const l = await this.request<any>(
-        `/_api/web/lists/getbytitle('${listTitle}')`
+      `/_api/web/lists/getbytitle('${listTitle}')`
     )
     return {
       Id: l.Id,
@@ -773,9 +800,9 @@ parts.push('-ContentTypeId:0x0120*')
   }
 
   async createList(
-      title: string,
-      description?: string,
-      template = 100
+    title: string,
+    description?: string,
+    template = 100
   ): Promise<ListInfo> {
     const l = await this.request<any>(`/_api/web/lists`, {
       method: 'POST',
@@ -840,9 +867,9 @@ parts.push('-ContentTypeId:0x0120*')
     const d = await res.json()
     this.digestCache = d.d.GetContextWebInformation.FormDigestValue
     this.digestExpiry =
-        Date.now() +
-        d.d.GetContextWebInformation.FormDigestTimeoutSeconds * 1000 -
-        60000
+      Date.now() +
+      d.d.GetContextWebInformation.FormDigestTimeoutSeconds * 1000 -
+      60000
     return this.digestCache!
   }
 
@@ -855,7 +882,7 @@ parts.push('-ContentTypeId:0x0120*')
 
   async getSiteUsers(): Promise<UserInfo[]> {
     return await this.request<UserInfo[]>(
-        `/_api/web/siteusers?$filter=PrincipalType eq 1`
+      `/_api/web/siteusers?$filter=PrincipalType eq 1`
     )
   }
 
@@ -875,7 +902,7 @@ parts.push('-ContentTypeId:0x0120*')
       // Step 1: Get the User ID/LoginName from Email
       const user = await this.getUserByEmail(email)
       endpoint = `/_api/web/siteusers/getByLoginName(@v)/groups?@v='${encodeURIComponent(
-          user.LoginName
+        user.LoginName
       )}'`
     } else {
       // Current User
@@ -895,23 +922,23 @@ parts.push('-ContentTypeId:0x0120*')
   }
 
   async removeUserFromGroup(
-      groupName: string,
-      loginName: string
+    groupName: string,
+    loginName: string
   ): Promise<void> {
     await this.request(
-        `/_api/web/sitegroups/getByName('${groupName}')/users/removeByLoginName(@v)?@v='${encodeURIComponent(
-            loginName
-        )}'`,
-        {
-          method: 'POST',
-          isWrite: true,
-        }
+      `/_api/web/sitegroups/getByName('${groupName}')/users/removeByLoginName(@v)?@v='${encodeURIComponent(
+        loginName
+      )}'`,
+      {
+        method: 'POST',
+        isWrite: true,
+      }
     )
   }
 
   async createGroup(
-      groupName: string,
-      description?: string
+    groupName: string,
+    description?: string
   ): Promise<SiteGroup> {
     return await this.request<SiteGroup>(`/_api/web/sitegroups`, {
       method: 'POST',
@@ -925,14 +952,14 @@ parts.push('-ContentTypeId:0x0120*')
   }
 
   async getUserEffectivePermissions(
-      email?: string
+    email?: string
   ): Promise<SPBasePermissions> {
     let endpoint = ''
 
     if (email) {
       const user = await this.getUserByEmail(email)
       endpoint = `/_api/web/getUserEffectivePermissions(@v)?@v='${encodeURIComponent(
-          user.LoginName
+        user.LoginName
       )}'`
     } else {
       endpoint = `/_api/web/effectiveBasePermissions`
@@ -945,7 +972,7 @@ parts.push('-ContentTypeId:0x0120*')
   private async getUserByEmail(email: string): Promise<UserInfo> {
     // We filter site users to find the specific email
     const users = await this.request<UserInfo[]>(
-        `/_api/web/siteusers?$filter=Email eq '${email}'`
+      `/_api/web/siteusers?$filter=Email eq '${email}'`
     )
     const user = users[0]
     if (!user)
@@ -979,14 +1006,15 @@ parts.push('-ContentTypeId:0x0120*')
     // The classic Versions.aspx page can accept a FileName parameter
     // This works on both SharePoint On-Prem and Online
     return `${
-        this.baseUrl
+      this.baseUrl
     }/_layouts/15/Versions.aspx?FileName=${encodeURIComponent(
-        serverRelativeUrl
+      serverRelativeUrl
     )}`
   }
 
   private isSearchOnlyProp(field: string): boolean {
-    const searchOnlyPattern = /^(Refinable|HitHighlighted|Path$|OriginalPath$|Rank$|DocId$|WorkId$|Piw)/i
+    const searchOnlyPattern =
+      /^(Refinable|HitHighlighted|Path$|OriginalPath$|Rank$|DocId$|WorkId$|Piw)/i
     return searchOnlyPattern.test(field)
   }
 }
