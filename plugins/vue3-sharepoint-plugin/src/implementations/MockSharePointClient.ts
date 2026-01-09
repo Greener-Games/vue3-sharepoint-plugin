@@ -567,7 +567,7 @@ export class MockSharePointClient implements ISharePointClient {
   async restoreItem(id: string | number) {
     this.logger.log(`Restore ${id}`)
   }
-  async getListFields() {
+  async getListFields(listTitle: string, webUrl?: string) {
     return []
   }
   async getFieldChoices() {

@@ -247,7 +247,7 @@ export interface ISharePointClient {
 
   // Users & Groups
   getCurrentUser(): Promise<UserInfo>
-  getListFields(listTitle: string): Promise<FieldDefinition[]>
+  getListFields(listTitle: string, webUrl?: string): Promise<FieldDefinition[]>
   getFieldChoices(
     listTitle: string,
     fieldInternalName: string

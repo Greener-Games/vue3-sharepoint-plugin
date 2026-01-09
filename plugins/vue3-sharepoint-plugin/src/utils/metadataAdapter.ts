@@ -17,9 +17,10 @@ export interface FormValue {
 export async function adaptFileMetadata(
   client: ISharePointClient,
   listTitle: string,
-  payload: Record<string, any>
+  payload: Record<string, any>,
+  webUrl?: string
 ): Promise<FormValue[]> {
-  const fields = await client.getListFields(listTitle)
+  const fields = await client.getListFields(listTitle, webUrl)
   const formValues: FormValue[] = []
 
   for (const [key, value] of Object.entries(payload)) {
