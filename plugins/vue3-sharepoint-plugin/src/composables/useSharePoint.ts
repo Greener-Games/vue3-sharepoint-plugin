@@ -122,6 +122,7 @@ export function useSharePoint() {
 
     // Users & Groups
     getSiteUsers: client.getSiteUsers.bind(client),
+    searchUsers: client.searchUsers.bind(client), // Add this
     ensureUser: client.ensureUser.bind(client),
     getUserGroups: client.getUserGroups.bind(client),
     addUserToGroup: client.addUserToGroup.bind(client),

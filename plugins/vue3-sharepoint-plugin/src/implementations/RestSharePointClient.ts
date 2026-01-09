@@ -279,6 +279,10 @@ export class RestSharePointClient implements ISharePointClient {
         RowLimit: opts.rowLimit || 10,
         StartRow: opts.startRow || 0,
         SelectProperties: { results: searchSelect },
+        Refiners:
+          opts.refiners && opts.refiners.length > 0
+            ? opts.refiners.join(',')
+            : undefined,
         HitHighlightedProperties: { results: ['Contents', 'Title'] },
         SummaryLength: 250,
         EnableStemming: true,
@@ -293,6 +297,20 @@ export class RestSharePointClient implements ISharePointClient {
       isWrite: true,
       skipMetadata: true,
     })
+
+    const refinerData = data.d.postquery.PrimaryQueryResult.RefinementResults
+
+    let refiners = undefined;
+    if (refinerData) {
+      refiners = refinerData.Refiners.results.map((r: any) => ({
+        filterName: r.Name, // e.g., "RefinableString00"
+        options: r.Entries.results.map((e: any) => ({
+          label: e.RefinementName, // e.g., "Asia"
+          count: e.RefinementCount, // e.g., 42
+          token: e.RefinementToken, // Used for the actual filtering logic
+        })),
+      }))
+    }
 
     const rows =
       data.d.postquery.PrimaryQueryResult.RelevantResults.Table.Rows.results
@@ -399,10 +417,12 @@ export class RestSharePointClient implements ISharePointClient {
       })
     }
 
+    console.log('refiners', refiners)
     return {
       items,
       totalHits: data.d.postquery.PrimaryQueryResult.RelevantResults.TotalRows,
       startRow: opts.startRow || 0,
+      refiners: refiners,
     }
   }
 
@@ -884,6 +904,36 @@ export class RestSharePointClient implements ISharePointClient {
     return await this.request<UserInfo[]>(
       `/_api/web/siteusers?$filter=PrincipalType eq 1`
     )
+  }
+
+  async searchUsers(query: string): Promise<UserInfo[]> {
+    const endpoint = `/_api/SP.UI.ApplicationPages.ClientPeoplePickerWebServiceInterface.clientPeoplePickerSearchUser`;
+    const payload = {
+      queryParams: {
+        QueryString: query,
+        MaximumEntitySuggestions: 15,
+        AllowEmailAddresses: true,
+        PrincipalSource: 15, // All sources
+        PrincipalType: 1,   // Users only
+      }
+    };
+
+    const response = await this.request<any>(endpoint, {
+      method: 'POST',
+      body: payload,
+      isWrite: true,
+      skipMetadata: true
+    });
+
+    // The People Picker returns a JSON string inside a string; it needs parsing
+    const results = JSON.parse(response.d.ClientPeoplePickerSearchUser);
+
+    return results.map((r: any) => ({
+      Id: 0, // People picker doesn't return Site ID until you 'ensureUser'
+      Title: r.DisplayText,
+      Email: r.EntityData.Email || r.Description,
+      LoginName: r.Key
+    }));
   }
 
   async ensureUser(loginName: string): Promise<UserInfo> {

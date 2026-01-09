@@ -41,6 +41,7 @@ export interface SearchRequestOptions {
   startRow?: number
   mapping?: Record<string, string>
   selectFields?: string[]
+  refiners?: string[]
   /**
    * Fields to expand in the hydration step (e.g. ['Author', 'Department']).
    * Presence of this field automatically triggers hydration.
@@ -64,6 +65,18 @@ export interface SearchResult<T> {
   items: T[]
   totalHits: number
   startRow: number
+  refiners?: RefinerResult[] // Add this
+}
+
+export interface RefinerValue {
+  label: string
+  count: number
+  token: string
+}
+
+export interface RefinerResult {
+  name: string
+  values: RefinerValue[]
 }
 
 export interface SiteGroup {
@@ -187,9 +200,21 @@ export interface ISharePointClient {
   ): Promise<T[]>
 
   // Attachments
-  getItemAttachments(listTitle: string, itemId: number): Promise<AttachmentInfo[]>
-  addAttachment(listTitle: string, itemId: number, fileName: string, file: Blob | ArrayBuffer): Promise<void>
-  deleteAttachment(listTitle: string, itemId: number, fileName: string): Promise<void>
+  getItemAttachments(
+    listTitle: string,
+    itemId: number
+  ): Promise<AttachmentInfo[]>
+  addAttachment(
+    listTitle: string,
+    itemId: number,
+    fileName: string,
+    file: Blob | ArrayBuffer
+  ): Promise<void>
+  deleteAttachment(
+    listTitle: string,
+    itemId: number,
+    fileName: string
+  ): Promise<void>
 
   // Files & Folders
   uploadFile(
@@ -212,7 +237,11 @@ export interface ISharePointClient {
   // Lists
   getLists(): Promise<ListInfo[]>
   getList(listTitle: string): Promise<ListInfo>
-  createList(title: string, description?: string, template?: number): Promise<ListInfo>
+  createList(
+    title: string,
+    description?: string,
+    template?: number
+  ): Promise<ListInfo>
   deleteList(title: string): Promise<void>
 
   // Users & Groups
@@ -225,6 +254,8 @@ export interface ISharePointClient {
 
   /** Get all users on the site */
   getSiteUsers(): Promise<UserInfo[]>
+  /** Search for users by name or email */
+  searchUsers(query: string): Promise<UserInfo[]>
   ensureUser(loginName: string): Promise<UserInfo>
 
   /**

@@ -102,7 +102,7 @@ export class MockSharePointClient implements ISharePointClient {
         Id: 'mock-web-id',
         Title: 'Mock Web',
         Url: '/sites/mock',
-        Description: 'This is a mock web'
+        Description: 'This is a mock web',
       },
       ...data,
     }
@@ -130,35 +130,37 @@ export class MockSharePointClient implements ISharePointClient {
 
       // Check if any defined List Name appears inside the requested Scope URL
       // e.g. Scope: "/sites/V2/Shared Documents", List Key: "Shared Documents" -> MATCH
-      targetListKeys = definedListNames.filter(listName => {
+      targetListKeys = definedListNames.filter((listName) => {
         // Normalize to lowercase for comparison
-        return scopes.some(s => s.toLowerCase().includes(listName.toLowerCase()))
+        return scopes.some((s) =>
+          s.toLowerCase().includes(listName.toLowerCase())
+        )
       })
     }
 
     // If we found specific lists matching the scope, only load those.
     // Otherwise (or if scope is empty), load ALL lists.
-    const listsToSearch = targetListKeys.length > 0 ? targetListKeys : definedListNames
+    const listsToSearch =
+      targetListKeys.length > 0 ? targetListKeys : definedListNames
 
-    listsToSearch.forEach(key => {
+    listsToSearch.forEach((key) => {
       const listItems = this.data.lists![key] || []
       allItems = [...allItems, ...listItems]
     })
     // ------------------------------------------------
-
 
     // --- STEP 2: Path Filtering (Sub-folders) ---
     // Even if we selected the right list, the scope might be a sub-folder.
     if (opts.scope) {
       const scopes = Array.isArray(opts.scope) ? opts.scope : [opts.scope]
 
-      allItems = allItems.filter(item => {
+      allItems = allItems.filter((item) => {
         // If item has no path, we can't verify sub-folder, so exclude safely
         if (!item.Path && !item.url) return false
 
         const itemPath = (item.Path || item.url).toLowerCase()
         // Does the item path start with the scope?
-        return scopes.some(s => itemPath.includes(s.toLowerCase()))
+        return scopes.some((s) => itemPath.includes(s.toLowerCase()))
       })
     }
 
@@ -170,14 +172,14 @@ export class MockSharePointClient implements ISharePointClient {
         const titleMatch = item.Title?.toLowerCase().includes(q)
         // In SP, Filename is often FileLeafRef or derived from Path
         const filenameMatch = (item.FileLeafRef || item.Name || '')
-            .toLowerCase()
-            .includes(q)
+          .toLowerCase()
+          .includes(q)
         const pathMatch = (item.Path || item.url || '')
-            .toLowerCase()
-            .includes(q)
+          .toLowerCase()
+          .includes(q)
 
         const summaryMatch =
-            item.HitHighlightedSummary?.toLowerCase().includes(q)
+          item.HitHighlightedSummary?.toLowerCase().includes(q)
 
         return titleMatch || filenameMatch || pathMatch || summaryMatch
       })
@@ -185,18 +187,18 @@ export class MockSharePointClient implements ISharePointClient {
 
     // --- STEP 3.4: File Types (Inclusion / Exclusion) (Mock) ---
     if (opts.fileTypes?.include?.length) {
-      const includes = opts.fileTypes.include.map(e => e.toLowerCase())
-      allItems = allItems.filter(item => {
+      const includes = opts.fileTypes.include.map((e) => e.toLowerCase())
+      allItems = allItems.filter((item) => {
         const path = (item.Path || item.url || '').toLowerCase()
-        return includes.some(ext => path.endsWith(`.${ext}`))
+        return includes.some((ext) => path.endsWith(`.${ext}`))
       })
     }
 
     if (opts.fileTypes?.exclude?.length) {
-      const excludes = opts.fileTypes.exclude.map(e => e.toLowerCase())
-      allItems = allItems.filter(item => {
+      const excludes = opts.fileTypes.exclude.map((e) => e.toLowerCase())
+      allItems = allItems.filter((item) => {
         const path = (item.Path || item.url || '').toLowerCase()
-        return !excludes.some(ext => path.endsWith(`.${ext}`))
+        return !excludes.some((ext) => path.endsWith(`.${ext}`))
       })
     }
 
@@ -204,10 +206,14 @@ export class MockSharePointClient implements ISharePointClient {
     if (opts.resultType === 'folders') {
       // In Mock, we assume items in `data.lists` are File/Items unless they have FSObjType=1
       // If no FSObjType property exists, we assume it's NOT a folder.
-      allItems = allItems.filter(item => item.FSObjType === 1 || item.FileSystemObjectType === 1)
+      allItems = allItems.filter(
+        (item) => item.FSObjType === 1 || item.FileSystemObjectType === 1
+      )
     } else if (opts.resultType === 'items') {
       // Exclude folders
-      allItems = allItems.filter(item => item.FSObjType !== 1 && item.FileSystemObjectType !== 1)
+      allItems = allItems.filter(
+        (item) => item.FSObjType !== 1 && item.FileSystemObjectType !== 1
+      )
     }
 
     // --- STEP 4: Metadata Filters ---
@@ -218,7 +224,7 @@ export class MockSharePointClient implements ISharePointClient {
         let dataKey = key
         if (opts.mapping) {
           const found = Object.keys(opts.mapping).find(
-              (k) => opts.mapping![k] === key
+            (k) => opts.mapping![k] === key
           )
           if (found) dataKey = found
         }
@@ -231,7 +237,7 @@ export class MockSharePointClient implements ISharePointClient {
 
           if (Array.isArray(value)) {
             return value.some((v) =>
-                normalizedItemVal.includes(String(v).toLowerCase())
+              normalizedItemVal.includes(String(v).toLowerCase())
             )
           }
 
@@ -245,7 +251,7 @@ export class MockSharePointClient implements ISharePointClient {
     const start = opts.startRow || 0
     const limit = opts.rowLimit || 10
 
-    let items = allItems.slice(start, start + limit).map(item => {
+    let items = allItems.slice(start, start + limit).map((item) => {
       const map: any = { ...item }
 
       if (opts.includeRelativePath && map.Path) {
@@ -262,7 +268,7 @@ export class MockSharePointClient implements ISharePointClient {
     // But if we want to simulate expand, we might need to do something.
     // For now, we assume the Mock Data objects already contain all info or we can ignore expand.
     if (opts.expandFields) {
-       // Pass (No-op for Mock unless we want to simulate partial objects first)
+      // Pass (No-op for Mock unless we want to simulate partial objects first)
     }
 
     // Mapping
@@ -316,10 +322,23 @@ export class MockSharePointClient implements ISharePointClient {
     return this.data.siteUsers || [this.data.currentUser!]
   }
 
+  async searchUsers(query: string): Promise<UserInfo[]> {
+    await this.wait()
+    if (!query) return []
+
+    const q = query.toLowerCase()
+    const allUsers = this.data.siteUsers || [this.data.currentUser!]
+
+    return allUsers.filter(
+      (u) =>
+        u.Title.toLowerCase().includes(q) || u.Email.toLowerCase().includes(q)
+    )
+  }
+
   async ensureUser(loginName: string): Promise<UserInfo> {
     await this.wait()
     const user = this.data.siteUsers?.find(
-        (u) => u.LoginName === loginName || u.Email === loginName
+      (u) => u.LoginName === loginName || u.Email === loginName
     )
     if (user) return user
 
@@ -346,7 +365,7 @@ export class MockSharePointClient implements ISharePointClient {
     const user = await this.ensureUser(loginName)
 
     // Find Group
-    let group = this.data.siteGroups?.find(g => g.Title === groupName)
+    let group = this.data.siteGroups?.find((g) => g.Title === groupName)
     if (!group) {
       // Mock creating group if not exists in site groups for simplicity
       group = { Id: Math.floor(Math.random() * 1000), Title: groupName }
@@ -358,16 +377,21 @@ export class MockSharePointClient implements ISharePointClient {
     if (!groupsMap[user.Email]) {
       groupsMap[user.Email] = []
     }
-    if (!groupsMap[user.Email].find(g => g.Title === groupName)) {
+    if (!groupsMap[user.Email].find((g) => g.Title === groupName)) {
       groupsMap[user.Email].push(group)
     }
     this.logger.log(`Added ${loginName} to group ${groupName}`)
   }
 
-  async removeUserFromGroup(groupName: string, loginName: string): Promise<void> {
+  async removeUserFromGroup(
+    groupName: string,
+    loginName: string
+  ): Promise<void> {
     await this.wait()
     // Find user (by email approx)
-    const user = this.data.siteUsers?.find(u => u.LoginName === loginName || u.Email === loginName)
+    const user = this.data.siteUsers?.find(
+      (u) => u.LoginName === loginName || u.Email === loginName
+    )
     if (!user) return
 
     const userGroups = this.data.userGroups
@@ -376,22 +400,29 @@ export class MockSharePointClient implements ISharePointClient {
       const groups = userGroups[user.Email]
       if (groups) {
         // @ts-ignore
-        userGroups[user.Email] = groups.filter(g => g.Title !== groupName)
+        userGroups[user.Email] = groups.filter((g) => g.Title !== groupName)
       }
     }
     this.logger.log(`Removed ${loginName} from group ${groupName}`)
   }
 
-  async createGroup(groupName: string, description?: string): Promise<SiteGroup> {
+  async createGroup(
+    groupName: string,
+    description?: string
+  ): Promise<SiteGroup> {
     await this.wait()
-    const newGroup = { Id: Math.floor(Math.random() * 1000), Title: groupName, Description: description }
+    const newGroup = {
+      Id: Math.floor(Math.random() * 1000),
+      Title: groupName,
+      Description: description,
+    }
     this.data.siteGroups?.push(newGroup)
     this.logger.log(`Created group ${groupName}`)
     return newGroup
   }
 
   async getUserEffectivePermissions(
-      email?: string
+    email?: string
   ): Promise<SPBasePermissions> {
     await this.wait()
     const targetEmail = email || this.data.currentUser!.Email
@@ -407,7 +438,7 @@ export class MockSharePointClient implements ISharePointClient {
   async sendEmail(props: EmailProperties): Promise<void> {
     await this.wait()
     this.logger.log(
-        `📧 Sent Email to [${props.To.join(', ')}]: ${props.Subject}`
+      `📧 Sent Email to [${props.To.join(', ')}]: ${props.Subject}`
     )
   }
 
@@ -423,9 +454,9 @@ export class MockSharePointClient implements ISharePointClient {
   }
 
   async uploadFile(
-      url: string,
-      name: string,
-      file: Blob | ArrayBuffer
+    url: string,
+    name: string,
+    file: Blob | ArrayBuffer
   ): Promise<string> {
     await this.wait()
     // Normalize url if it's site relative
@@ -439,7 +470,7 @@ export class MockSharePointClient implements ISharePointClient {
 
     const fullPath = `${targetUrl}/${name}`
     this.data.files![fullPath] =
-        file instanceof ArrayBuffer ? new Blob([file]) : file
+      file instanceof ArrayBuffer ? new Blob([file]) : file
     this.logger.log(`Uploaded ${fullPath}`)
     return fullPath
   }
@@ -469,14 +500,14 @@ export class MockSharePointClient implements ISharePointClient {
   }
   async updateListItem(list: string, id: number, payload: any) {
     this.logger.log(`Update ${list} #${id}`, payload)
-    const item = this.data.lists?.[list]?.find(i => i.Id === id)
+    const item = this.data.lists?.[list]?.find((i) => i.Id === id)
     if (item) Object.assign(item, payload)
   }
   async deleteListItem(list: string, id: number) {
     this.logger.log(`Delete ${list} #${id}`)
     const lists = this.data.lists
     if (lists && lists[list]) {
-      lists[list] = lists[list].filter(i => i.Id !== id)
+      lists[list] = lists[list].filter((i) => i.Id !== id)
     }
   }
   async getListItemById(
@@ -561,17 +592,17 @@ export class MockSharePointClient implements ISharePointClient {
     const explicitInfos = this.data.listsInfo || []
 
     // 2. Get lists that exist in data.lists but NOT in explicit listsInfo
-    const knownTitles = new Set(explicitInfos.map(l => l.Title))
+    const knownTitles = new Set(explicitInfos.map((l) => l.Title))
     const derivedInfos = Object.keys(this.data.lists || {})
-        .filter(k => !knownTitles.has(k))
-        .map((k, i) => ({
-          Id: `mock-list-${i}`,
-          Title: k,
-          Description: 'Mock List',
-          ItemCount: this.data.lists![k].length,
-          Hidden: false,
-          ImageUrl: ''
-        }))
+      .filter((k) => !knownTitles.has(k))
+      .map((k, i) => ({
+        Id: `mock-list-${i}`,
+        Title: k,
+        Description: 'Mock List',
+        ItemCount: this.data.lists![k].length,
+        Hidden: false,
+        ImageUrl: '',
+      }))
 
     return [...explicitInfos, ...derivedInfos]
   }
@@ -579,12 +610,16 @@ export class MockSharePointClient implements ISharePointClient {
   async getList(listTitle: string): Promise<ListInfo> {
     await this.wait()
     const lists = await this.getLists()
-    const found = lists.find(l => l.Title === listTitle)
+    const found = lists.find((l) => l.Title === listTitle)
     if (!found) throw new Error(`List ${listTitle} not found`)
     return found
   }
 
-  async createList(title: string, description?: string, _template?: number): Promise<ListInfo> {
+  async createList(
+    title: string,
+    description?: string,
+    _template?: number
+  ): Promise<ListInfo> {
     await this.wait()
     if (!this.data.lists) {
       this.data.lists = {}
@@ -599,7 +634,7 @@ export class MockSharePointClient implements ISharePointClient {
       Description: description || '',
       ItemCount: 0,
       Hidden: false,
-      ImageUrl: ''
+      ImageUrl: '',
     }
     if (!this.data.listsInfo) this.data.listsInfo = []
     this.data.listsInfo.push(info)
@@ -612,21 +647,37 @@ export class MockSharePointClient implements ISharePointClient {
       delete this.data.lists[title]
     }
     if (this.data.listsInfo) {
-      this.data.listsInfo = this.data.listsInfo.filter(l => l.Title !== title)
+      this.data.listsInfo = this.data.listsInfo.filter((l) => l.Title !== title)
     }
   }
 
   // --- 6. ATTACHMENTS ---
-  async getItemAttachments(_listTitle: string, _itemId: number): Promise<AttachmentInfo[]> {
+  async getItemAttachments(
+    _listTitle: string,
+    _itemId: number
+  ): Promise<AttachmentInfo[]> {
     // Mock implementation: return empty or fake attachments
     return []
   }
 
-  async addAttachment(listTitle: string, itemId: number, fileName: string, _file: Blob | ArrayBuffer): Promise<void> {
-    this.logger.log(`Added attachment ${fileName} to ${listTitle} item ${itemId}`)
+  async addAttachment(
+    listTitle: string,
+    itemId: number,
+    fileName: string,
+    _file: Blob | ArrayBuffer
+  ): Promise<void> {
+    this.logger.log(
+      `Added attachment ${fileName} to ${listTitle} item ${itemId}`
+    )
   }
 
-  async deleteAttachment(listTitle: string, itemId: number, fileName: string): Promise<void> {
-    this.logger.log(`Deleted attachment ${fileName} from ${listTitle} item ${itemId}`)
+  async deleteAttachment(
+    listTitle: string,
+    itemId: number,
+    fileName: string
+  ): Promise<void> {
+    this.logger.log(
+      `Deleted attachment ${fileName} from ${listTitle} item ${itemId}`
+    )
   }
 }
