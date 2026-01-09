@@ -567,11 +567,23 @@ export class MockSharePointClient implements ISharePointClient {
   async restoreItem(id: string | number) {
     this.logger.log(`Restore ${id}`)
   }
-  async getListFields() {
+  async getListFields(listTitle: string, webUrl?: string) {
     return []
   }
   async getFieldChoices() {
     return []
+  }
+
+  async searchTerm(
+    termSetId: string,
+    label: string
+  ): Promise<{ Label: string; TermGuid: string } | null> {
+    await this.wait()
+    this.logger.log(`Mock SearchTerm: ${label} in ${termSetId}`)
+    return {
+      Label: label,
+      TermGuid: '00000000-0000-0000-0000-000000000000'
+    }
   }
 
   // --- 5. WEBS & LISTS ---

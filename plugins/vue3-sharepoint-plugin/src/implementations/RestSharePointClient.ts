@@ -15,6 +15,7 @@ import type {
   AttachmentInfo,
 } from '../types'
 import { getServerRelativePath } from '../utils/urlUtils'
+import { adaptFileMetadata } from '../utils/metadataAdapter'
 import { Logger } from '../utils/debug'
 
 // Internal Type (Fixes your error)
@@ -87,18 +88,49 @@ export class RestSharePointClient implements ISharePointClient {
       headers?: Record<string, string>
       isWrite?: boolean
       skipMetadata?: boolean // If true, doesn't unwrap .d or .d.results
+      targetPath?: string // Optional: The file/folder path to determine the correct API root
     } = {}
   ): Promise<T> {
-    const { method = 'GET', body, isWrite = false } = options
+    const { method = 'GET', body, isWrite = false, targetPath } = options
 
-    const headers = await this.getHeaders(isWrite)
+    let finalEndpoint = endpoint;
+    let contextUrl: string | undefined = undefined;
+
+    // 1. Determine API Root based on targetPath
+    if (targetPath) {
+        const apiRoot = this.getApiRoot(targetPath);
+        contextUrl = apiRoot;
+
+        // If endpoint is relative, prepend the calculated apiRoot
+        if (!endpoint.startsWith('http')) {
+            finalEndpoint = `${apiRoot}${endpoint}`;
+        } else {
+            finalEndpoint = endpoint;
+        }
+    } else {
+        // Default behavior
+        if (endpoint.startsWith('http')) {
+            finalEndpoint = endpoint;
+        } else {
+            finalEndpoint = `${this.baseUrl}${endpoint}`;
+        }
+    }
+
+    // 2. Determine Digest Context (if not already set by targetPath logic)
+    if (isWrite && !contextUrl) {
+       // Try to infer from endpoint if it's absolute
+       if (finalEndpoint.startsWith('http')) {
+           try {
+             const urlObj = new URL(finalEndpoint);
+             contextUrl = this.getApiRoot(urlObj.pathname);
+           } catch { /* ignore */ }
+       }
+    }
+
+    const headers = await this.getHeaders(isWrite, contextUrl)
     if (options.headers) {
       Object.entries(options.headers).forEach(([k, v]) => headers.set(k, v))
     }
-
-    const fullUrl = endpoint.startsWith('http')
-      ? endpoint
-      : `${this.baseUrl}${endpoint}`
 
     const fetchOptions: RequestInit = {
       method,
@@ -117,9 +149,9 @@ export class RestSharePointClient implements ISharePointClient {
       ) as BodyInit
     }
 
-    this.logger.log(`Request: ${method} ${fullUrl}`, body ? { body } : '')
+    this.logger.log(`Request: ${method} ${finalEndpoint}`, body ? { body } : '')
 
-    const response = await fetch(fullUrl, fetchOptions)
+    const response = await fetch(finalEndpoint, fetchOptions)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -438,14 +470,25 @@ export class RestSharePointClient implements ISharePointClient {
     return data
   }
 
-  async getListFields(list: string) {
-    const cacheKey = `Fields:${list}`
+  async getListFields(list: string, webUrl?: string) {
+    const cacheKey = `Fields:${webUrl || 'current'}:${list}`
     const cached = this.cache.get<FieldDefinition[]>(cacheKey)
     if (cached) return cached
 
-    const data = await this.request<any[]>(
-      `/_api/web/lists/getbytitle('${list}')/fields?$filter=Hidden eq false`
-    )
+    // If webUrl is provided, use it as the base for the request context
+    // This supports cross-site schema fetching
+    const endpoint = `/_api/web/lists/getbytitle('${list}')/fields?$filter=Hidden eq false`;
+
+    // Pass webUrl as targetPath if it looks like a URL, or handle it in request logic?
+    // request() uses targetPath to determine apiRoot.
+    // If webUrl is the API root (e.g. /sites/Other), we pass it as targetPath.
+
+    const requestOptions: any = {};
+    if (webUrl) {
+        requestOptions.targetPath = webUrl;
+    }
+
+    const data = await this.request<any[]>(endpoint, requestOptions)
 
     const mapped = data.map((f: any) => ({
       InternalName: f.InternalName,
@@ -453,6 +496,7 @@ export class RestSharePointClient implements ISharePointClient {
       TypeAsString: f.TypeAsString,
       Hidden: f.Hidden,
       Choices: f.Choices?.results || [],
+      TermSetId: f.TermSetId || undefined
     }))
 
     this.cache.set(cacheKey, mapped)
@@ -471,6 +515,36 @@ export class RestSharePointClient implements ISharePointClient {
     const choices = data.Choices?.results || []
     this.cache.set(cacheKey, choices)
     return choices
+  }
+
+  async searchTerm(
+    termSetId: string,
+    label: string
+  ): Promise<{ Label: string; TermGuid: string } | null> {
+    // Uses the modern Taxonomy API (v2.1)
+    // $filter=labels/any(l:l/name eq 'Label') or defaults to name matching
+    try {
+      // NOTE: We wrap the label in quotes. If label contains quotes, they need escaping.
+      const safeLabel = label.replace(/'/g, "''")
+
+      const endpoint = `/_api/v2.1/termStore/termSets/${termSetId}/terms?$filter=labels/any(l:l/name eq '${safeLabel}') or name eq '${safeLabel}'&$select=id,name,labels`
+
+      const response = await this.request<{ value: any[] }>(endpoint)
+
+      const terms = response.value
+      if (terms && terms.length > 0) {
+        // Return first match
+        const t = terms[0]
+        // Prefer the localized name matching the input or just the default name
+        return {
+            Label: t.names?.[0]?.name || t.name || label,
+            TermGuid: t.id
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`SearchTerm failed for ${label} in ${termSetId}`, e)
+    }
+    return null
   }
 
   // --- Other Methods (Standard) ---
@@ -700,6 +774,7 @@ export class RestSharePointClient implements ISharePointClient {
 
   async uploadFile(url: string, name: string, file: any) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
+
     const data = await this.request<any>(
       `/_api/web/getfolderbyserverrelativeurl('${fullUrl}')/files/add(url='${name}', overwrite=true)`,
       {
@@ -709,6 +784,7 @@ export class RestSharePointClient implements ISharePointClient {
           'Content-Type': 'application/octet-stream',
         },
         isWrite: true,
+        targetPath: fullUrl // Triggers central getApiRoot
       }
     )
     return data.ServerRelativeUrl
@@ -716,12 +792,11 @@ export class RestSharePointClient implements ISharePointClient {
 
   async downloadFile(url: string) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
-    // We can't use centralized request for Blob return nicely without generic complexity or flag
-    // So sticking to native fetch for blob download, but using helper for headers could be good.
-    // However, downloadFile logic is simple enough.
+    const apiRoot = this.getApiRoot(fullUrl)
+
     const headers = await this.getHeaders(false)
     const res = await fetch(
-      `${this.baseUrl}/_api/web/getfilebyserverrelativeurl('${fullUrl}')/$value`,
+      `${apiRoot}/_api/web/getfilebyserverrelativeurl('${fullUrl}')/$value`,
       { headers }
     )
     return await res.blob()
@@ -729,23 +804,66 @@ export class RestSharePointClient implements ISharePointClient {
 
   async updateFileMetadata(url: string, payload: any) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
-    // 1. Get List Item URI
-    const meta = await this.request<any>(
-      `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/ListItemAllFields`
-    )
-    const uri = meta.__metadata.uri
-    const type = meta.__metadata.type
 
-    // 2. Update
-    await this.request(uri, {
-      method: 'POST',
-      body: { __metadata: { type }, ...payload },
-      headers: {
-        'X-HTTP-Method': 'MERGE',
-        'IF-MATCH': '*',
-      },
-      isWrite: true,
-    })
+    // 1. Get List Item details
+    const meta = await this.request<any>(
+      `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/ListItemAllFields?$expand=ParentList`,
+      { targetPath: fullUrl } // Triggers central getApiRoot
+    )
+
+    if (!meta || !meta.ParentList) {
+      throw new Error(`Could not determine List for file: ${url}`)
+    }
+
+    const listTitle = meta.ParentList.Title
+    const itemId = meta.Id
+
+    // 2. Adapt Payload
+    // Pass the apiRoot (calculated from fullUrl) to ensure we fetch fields from the correct site
+    const apiRoot = this.getApiRoot(fullUrl)
+    const formValues = await adaptFileMetadata(this, listTitle, payload, apiRoot)
+
+    // 3. Execute ValidateUpdateListItem on the Item
+    // Note: We need to use the same apiRoot for the list call.
+    // Since adaptFileMetadata uses the passed apiRoot for schema fetching, we are good.
+
+    const response = await this.request<any>(
+      `/_api/web/lists/getbytitle('${listTitle}')/items(${itemId})/ValidateUpdateListItem`,
+      {
+        method: 'POST',
+        body: {
+          formValues,
+          bNewDocumentUpdate: false
+        },
+        isWrite: true,
+        targetPath: fullUrl // Use file path to determine site again
+      }
+    )
+
+    // Check for field-level errors in ValidateUpdateListItem response
+    // Response structure: { value: [{ FieldName, ErrorCode, ErrorMessage }] }
+    // Or { d: { ValidateUpdateListItem: { results: [...] } } }
+
+    // Our request helper handles unwrapping 'd', but ValidateUpdateListItem action usually returns nested object in 'd'.
+    // e.g. d.ValidateUpdateListItem.results
+
+    // If request helper unwraps 'd', we might get { ValidateUpdateListItem: { results: [] } }
+    // Or if it unwraps 'd.results' (for collections), but this is a single action returning complex type.
+
+    let results: any[] = []
+    if (Array.isArray(response)) {
+        results = response;
+    } else if (response && response.ValidateUpdateListItem && response.ValidateUpdateListItem.results) {
+        results = response.ValidateUpdateListItem.results;
+    } else if (response && response.value) {
+        results = response.value;
+    }
+
+    const errors = results.filter((r: any) => r.ErrorCode !== 0)
+    if (errors.length > 0) {
+        const msg = errors.map((e: any) => `${e.FieldName}: ${e.ErrorMessage}`).join('; ')
+        throw new Error(`UpdateFileMetadata failed: ${msg}`)
+    }
   }
 
   async deleteFile(url: string) {
@@ -757,6 +875,7 @@ export class RestSharePointClient implements ISharePointClient {
         'IF-MATCH': '*',
       },
       isWrite: true,
+      targetPath: fullUrl
     })
   }
 
@@ -769,6 +888,7 @@ export class RestSharePointClient implements ISharePointClient {
         ServerRelativeUrl: fullUrl,
       },
       isWrite: true,
+      targetPath: fullUrl
     })
   }
 
@@ -856,7 +976,7 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   // --- Helpers ---
-  private async getHeaders(isWrite = false): Promise<Headers> {
+  private async getHeaders(isWrite = false, contextUrl?: string): Promise<Headers> {
     const headers = new Headers({
       Accept: 'application/json;odata=verbose',
       'Content-Type': 'application/json;odata=verbose',
@@ -866,31 +986,95 @@ export class RestSharePointClient implements ISharePointClient {
       Object.entries(a).forEach(([k, v]) => headers.append(k, v))
     }
     if (isWrite) {
-      headers.append('X-RequestDigest', await this.getRequestDigest())
+      headers.append('X-RequestDigest', await this.getRequestDigest(contextUrl))
     }
     return headers
   }
 
-  private async getRequestDigest(): Promise<string> {
-    if (this.digestCache && Date.now() < this.digestExpiry)
+  private async getRequestDigest(customBaseUrl?: string): Promise<string> {
+    // Note: Digest is per-site (web). If we are targeting a different site, we need a different digest.
+    // For simplicity, we cache based on the DEFAULT baseUrl.
+    // If a customBaseUrl is provided (different from default), we bypass cache or should cache separately.
+    // To support cross-site writes properly, we should really cache by URL.
+
+    // For now, if customBaseUrl is passed and differs, we fetch fresh.
+    const targetUrl = customBaseUrl || this.baseUrl;
+    const isDefault = targetUrl === this.baseUrl;
+
+    if (isDefault && this.digestCache && Date.now() < this.digestExpiry)
       return this.digestCache
 
     // We use a simplified fetch here to avoid recursion with `request` which might call getHeaders
     const h = new Headers({ Accept: 'application/json;odata=verbose' })
     if (this.authProvider) Object.assign(h, await this.authProvider())
 
-    const res = await fetch(`${this.baseUrl}/_api/contextinfo`, {
+    const res = await fetch(`${targetUrl}/_api/contextinfo`, {
       method: 'POST',
       headers: h,
     })
     if (!res.ok) return ''
     const d = await res.json()
-    this.digestCache = d.d.GetContextWebInformation.FormDigestValue
-    this.digestExpiry =
-      Date.now() +
-      d.d.GetContextWebInformation.FormDigestTimeoutSeconds * 1000 -
-      60000
-    return this.digestCache!
+
+    const token = d.d.GetContextWebInformation.FormDigestValue
+
+    if (isDefault) {
+        this.digestCache = token
+        this.digestExpiry =
+          Date.now() +
+          d.d.GetContextWebInformation.FormDigestTimeoutSeconds * 1000 -
+          60000
+    }
+    return token
+  }
+
+  /**
+   * Determines the correct SharePoint API root URL based on the file path.
+   * If the file path points to a different site collection (e.g. /sites/Other),
+   * this returns the URL to that site (https://tenant/sites/Other),
+   * allowing cross-site uploads/queries.
+   */
+  private getApiRoot(urlOrPath: string): string {
+    // 1. Get Origin
+    let origin = ''
+    try {
+        origin = new URL(this.baseUrl).origin
+    } catch {
+        return this.baseUrl // Fallback
+    }
+
+    // 2. Parse Path
+    // Normalize input (handle absolute URLs passed as targetPath)
+    const serverRelativePath = getServerRelativePath(urlOrPath, this.baseUrl)
+
+    // Heuristic: SharePoint site collections usually start with /sites/ or /teams/
+    // We look for the first 2 segments: /sites/SiteName or /teams/TeamName
+    // Or / (root site)
+
+    const path = serverRelativePath.startsWith('/') ? serverRelativePath : `/${serverRelativePath}`
+    const parts = path.split('/').filter(p => p) // Remove empty
+
+    if (parts.length >= 2) {
+        const category = parts[0].toLowerCase()
+        if (category === 'sites' || category === 'teams') {
+            return `${origin}/${parts[0]}/${parts[1]}`
+        }
+    }
+
+    // Fallback: If it's the root site collection (path starts with something else usually, or just /)
+    // But we might be in a subweb of the current baseUrl.
+    // Without exact knowledge of topology, we usually default to this.baseUrl
+    // OR return the Site Collection Root if we detect we are breaking out of the current web context?
+
+    // User Request: "query and upload to different sharepoints based on where the relativeurl is pointing"
+    // This strongly implies identifying the Site Collection.
+
+    // If the path doesn't match /sites/ or /teams/, it might be the root site collection.
+    // e.g. /Shared Documents -> https://tenant.com
+    if (parts.length > 0 && !['sites', 'teams'].includes(parts[0].toLowerCase())) {
+         return origin
+    }
+
+    return this.baseUrl
   }
 
   private generateUuid() {
