@@ -153,17 +153,18 @@ async function formatSingleTaxonomy(client: ISharePointClient, field: FieldDefin
 }
 
 async function formatUser(client: ISharePointClient, value: any): Promise<string> {
-  // ValidateUpdateListItem expects LoginName (Claim)
-  // Support Array for UserMulti
+  // ValidateUpdateListItem requires a specific format for User fields to be robust.
+  // Using a JSON stringified array of objects with "Key" (LoginName) is the standard way.
+  // Format: '[{"Key":"i:0#.f|membership|user@domain.com"}]'
+
   if (Array.isArray(value)) {
     const users = await Promise.all(value.map(v => resolveUser(client, v)))
-    // Separator for UserMulti in ValidateUpdateListItem is usually ";"
-    // e.g. "i:0#.f|...|user1;i:0#.f|...|user2"
-    return users.map(u => u.LoginName).join(';')
+    const payload = users.map(u => ({ Key: u.LoginName }))
+    return JSON.stringify(payload)
   }
 
   const user = await resolveUser(client, value)
-  return user.LoginName
+  return JSON.stringify([{ Key: user.LoginName }])
 }
 
 async function resolveUser(client: ISharePointClient, val: any): Promise<{ LoginName: string }> {

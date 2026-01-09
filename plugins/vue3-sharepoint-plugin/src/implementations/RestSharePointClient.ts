@@ -825,20 +825,9 @@ export class RestSharePointClient implements ISharePointClient {
 
     // 3. Execute ValidateUpdateListItem on the Item
     // Note: We need to use the same apiRoot for the list call.
-    // Since adaptFileMetadata doesn't strictly know about apiRoot, it uses 'getListFields'.
-    // We should ensure getListFields also supports cross-site or accept that it might fail if lists have same name but different schemas?
-    // Actually, RestSharePointClient.getListFields uses `this.request`.
-    // BUT getListFields(listTitle) assumes current site.
-    // If the file is in another site, 'listTitle' is just a name.
-    // We need to tell getListFields which site to look in?
-    // adaptFileMetadata calls client.getListFields(listTitle).
-    // The current ISharePointClient interface doesn't support passing a site URL to getListFields.
-    // This is a limitation. For now, we assume the schema is fetchable or consistent, OR we need to update getListFields to be smarter?
-    // But updateFileMetadata knows the apiRoot.
-    // We can't easily pass it to adaptFileMetadata without changing the interface or using a "context-aware" client clone.
+    // Since adaptFileMetadata uses the passed apiRoot for schema fetching, we are good.
 
-    // However, for the update call itself:
-    await this.request(
+    const response = await this.request<any>(
       `/_api/web/lists/getbytitle('${listTitle}')/items(${itemId})/ValidateUpdateListItem`,
       {
         method: 'POST',
@@ -850,6 +839,31 @@ export class RestSharePointClient implements ISharePointClient {
         targetPath: fullUrl // Use file path to determine site again
       }
     )
+
+    // Check for field-level errors in ValidateUpdateListItem response
+    // Response structure: { value: [{ FieldName, ErrorCode, ErrorMessage }] }
+    // Or { d: { ValidateUpdateListItem: { results: [...] } } }
+
+    // Our request helper handles unwrapping 'd', but ValidateUpdateListItem action usually returns nested object in 'd'.
+    // e.g. d.ValidateUpdateListItem.results
+
+    // If request helper unwraps 'd', we might get { ValidateUpdateListItem: { results: [] } }
+    // Or if it unwraps 'd.results' (for collections), but this is a single action returning complex type.
+
+    let results: any[] = []
+    if (Array.isArray(response)) {
+        results = response;
+    } else if (response && response.ValidateUpdateListItem && response.ValidateUpdateListItem.results) {
+        results = response.ValidateUpdateListItem.results;
+    } else if (response && response.value) {
+        results = response.value;
+    }
+
+    const errors = results.filter((r: any) => r.ErrorCode !== 0)
+    if (errors.length > 0) {
+        const msg = errors.map((e: any) => `${e.FieldName}: ${e.ErrorMessage}`).join('; ')
+        throw new Error(`UpdateFileMetadata failed: ${msg}`)
+    }
   }
 
   async deleteFile(url: string) {

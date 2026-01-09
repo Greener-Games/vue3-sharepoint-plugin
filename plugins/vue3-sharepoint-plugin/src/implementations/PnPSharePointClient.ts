@@ -488,7 +488,14 @@ export class PnPSharePointClient implements ISharePointClient {
     // 3. Update using ValidateUpdateListItem
     // Use the item instance to call the method
     const item = file.listItemAllFields
-    await item.validateUpdateListItem(formValues)
+    const results = await item.validateUpdateListItem(formValues)
+
+    // Check for errors
+    const errors = results.filter((r: any) => r.ErrorCode !== 0)
+    if (errors.length > 0) {
+        const msg = errors.map((e: any) => `${e.FieldName}: ${e.ErrorMessage}`).join('; ')
+        throw new Error(`UpdateFileMetadata failed: ${msg}`)
+    }
   }
 
   async deleteFile(serverRelativeUrl: string): Promise<void> {

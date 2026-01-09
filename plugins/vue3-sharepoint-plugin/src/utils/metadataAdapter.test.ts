@@ -88,8 +88,11 @@ describe('metadataAdapter', () => {
         const payload = { UserField: 'user@test.com' };
         const result = await adaptFileMetadata(mockClient, 'TestList', payload);
 
+        // Expects JSON string format now: [{"Key":"..."}]
+        const expectedValue = JSON.stringify([{ Key: 'i:0#.f|m|user@test.com' }]);
+
         expect(result).toEqual([
-            { FieldName: 'UserField', FieldValue: 'i:0#.f|m|user@test.com' }
+            { FieldName: 'UserField', FieldValue: expectedValue }
         ]);
     });
 
