@@ -574,6 +574,18 @@ export class MockSharePointClient implements ISharePointClient {
     return []
   }
 
+  async searchTerm(
+    termSetId: string,
+    label: string
+  ): Promise<{ Label: string; TermGuid: string } | null> {
+    await this.wait()
+    this.logger.log(`Mock SearchTerm: ${label} in ${termSetId}`)
+    return {
+      Label: label,
+      TermGuid: '00000000-0000-0000-0000-000000000000'
+    }
+  }
+
   // --- 5. WEBS & LISTS ---
   async getWebInfo(): Promise<WebInfo> {
     await this.wait()

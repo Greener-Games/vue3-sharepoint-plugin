@@ -11,6 +11,7 @@ export interface FieldDefinition {
   TypeAsString: string
   Hidden: boolean
   Choices?: string[]
+  TermSetId?: string
 }
 
 export interface ListItemQueryOptions {
@@ -251,6 +252,15 @@ export interface ISharePointClient {
     listTitle: string,
     fieldInternalName: string
   ): Promise<string[]>
+
+  /**
+   * Search for a Taxonomy Term by Label in a specific Term Set.
+   * Returns the first match with Label and GUID.
+   */
+  searchTerm(
+    termSetId: string,
+    label: string
+  ): Promise<{ Label: string; TermGuid: string } | null>
 
   /** Get all users on the site */
   getSiteUsers(): Promise<UserInfo[]>

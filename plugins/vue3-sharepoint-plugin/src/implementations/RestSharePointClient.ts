@@ -15,6 +15,7 @@ import type {
   AttachmentInfo,
 } from '../types'
 import { getServerRelativePath } from '../utils/urlUtils'
+import { adaptFileMetadata } from '../utils/metadataAdapter'
 import { Logger } from '../utils/debug'
 
 // Internal Type (Fixes your error)
@@ -453,6 +454,7 @@ export class RestSharePointClient implements ISharePointClient {
       TypeAsString: f.TypeAsString,
       Hidden: f.Hidden,
       Choices: f.Choices?.results || [],
+      TermSetId: f.TermSetId || undefined
     }))
 
     this.cache.set(cacheKey, mapped)
@@ -471,6 +473,36 @@ export class RestSharePointClient implements ISharePointClient {
     const choices = data.Choices?.results || []
     this.cache.set(cacheKey, choices)
     return choices
+  }
+
+  async searchTerm(
+    termSetId: string,
+    label: string
+  ): Promise<{ Label: string; TermGuid: string } | null> {
+    // Uses the modern Taxonomy API (v2.1)
+    // $filter=labels/any(l:l/name eq 'Label') or defaults to name matching
+    try {
+      // NOTE: We wrap the label in quotes. If label contains quotes, they need escaping.
+      const safeLabel = label.replace(/'/g, "''")
+
+      const endpoint = `/_api/v2.1/termStore/termSets/${termSetId}/terms?$filter=labels/any(l:l/name eq '${safeLabel}') or name eq '${safeLabel}'&$select=id,name,labels`
+
+      const response = await this.request<{ value: any[] }>(endpoint)
+
+      const terms = response.value
+      if (terms && terms.length > 0) {
+        // Return first match
+        const t = terms[0]
+        // Prefer the localized name matching the input or just the default name
+        return {
+            Label: t.names?.[0]?.name || t.name || label,
+            TermGuid: t.id
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`SearchTerm failed for ${label} in ${termSetId}`, e)
+    }
+    return null
   }
 
   // --- Other Methods (Standard) ---
@@ -729,22 +761,33 @@ export class RestSharePointClient implements ISharePointClient {
 
   async updateFileMetadata(url: string, payload: any) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
-    // 1. Get List Item URI
-    const meta = await this.request<any>(
-      `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/ListItemAllFields`
-    )
-    const uri = meta.__metadata.uri
-    const type = meta.__metadata.type
 
-    // 2. Update
-    await this.request(uri, {
+    // 1. Get List Item details (including Parent List Title for field lookup)
+    const meta = await this.request<any>(
+      `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/ListItemAllFields?$expand=ParentList`
+    )
+
+    if (!meta || !meta.ParentList) {
+      throw new Error(`Could not determine List for file: ${url}`)
+    }
+
+    const listTitle = meta.ParentList.Title
+    const itemId = meta.Id
+
+    // 2. Adapt Payload for ValidateUpdateListItem
+    const formValues = await adaptFileMetadata(this, listTitle, payload)
+
+    // 3. Execute ValidateUpdateListItem on the Item
+    // We use the List-based endpoint because we have List Title and Item ID
+    const endpoint = `/_api/web/lists/getbytitle('${listTitle}')/items(${itemId})/ValidateUpdateListItem`
+
+    await this.request(endpoint, {
       method: 'POST',
-      body: { __metadata: { type }, ...payload },
-      headers: {
-        'X-HTTP-Method': 'MERGE',
-        'IF-MATCH': '*',
+      body: {
+        formValues,
+        bNewDocumentUpdate: false
       },
-      isWrite: true,
+      isWrite: true
     })
   }
 

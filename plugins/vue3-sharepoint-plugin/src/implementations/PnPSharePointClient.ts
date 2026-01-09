@@ -15,6 +15,7 @@ import type {
   AttachmentInfo,
 } from '../types'
 import { getServerRelativePath } from '../utils/urlUtils'
+import { adaptFileMetadata } from '../utils/metadataAdapter'
 import { Logger } from '../utils/debug'
 import { spfi, SPFI } from '@pnp/sp'
 import { PnPLogging } from '@pnp/logging'
@@ -430,10 +431,25 @@ export class PnPSharePointClient implements ISharePointClient {
     payload: Record<string, any>
   ): Promise<void> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
-    const item = await this.sp.web
-      .getFileByServerRelativePath(fullUrl)
-      .getItem()
-    await item.update(payload)
+    const file = this.sp.web.getFileByServerRelativePath(fullUrl)
+
+    // 1. Get List Title from the Item's Parent List properties
+    // We expand 'ParentList' to avoid a separate call or guessing
+    const itemInfo = await file.listItemAllFields.select('Id', 'ParentList/Title').expand('ParentList')()
+
+    if (!itemInfo.ParentList?.Title) {
+      throw new Error(`Could not determine list title for file: ${fullUrl}`)
+    }
+
+    const listTitle = itemInfo.ParentList.Title
+
+    // 2. Adapt Payload
+    const formValues = await adaptFileMetadata(this, listTitle, payload)
+
+    // 3. Update using ValidateUpdateListItem
+    // Use the item instance to call the method
+    const item = file.listItemAllFields
+    await item.validateUpdateListItem(formValues)
   }
 
   async deleteFile(serverRelativeUrl: string): Promise<void> {
@@ -606,6 +622,7 @@ export class PnPSharePointClient implements ISharePointClient {
       TypeAsString: f.TypeAsString,
       Hidden: f.Hidden,
       Choices: f.Choices || [],
+      TermSetId: f.TermSetId || undefined
     }))
   }
 
@@ -617,6 +634,35 @@ export class PnPSharePointClient implements ISharePointClient {
       .getByTitle(listTitle)
       .fields.getByInternalNameOrTitle(fieldInternalName)()
     return f.Choices || []
+  }
+
+  async searchTerm(
+    termSetId: string,
+    label: string
+  ): Promise<{ Label: string; TermGuid: string } | null> {
+    try {
+      const safeLabel = label.replace(/'/g, "''")
+      // We assume /_api/v2.1 is available at the root of the site collection or tenant.
+      // Usually it's https://tenant.sharepoint.com/sites/site/_api/v2.1/...
+      const endpoint = `${this.baseUrl}/_api/v2.1/termStore/termSets/${termSetId}/terms?$filter=labels/any(l:l/name eq '${safeLabel}') or name eq '${safeLabel}'&$select=id,name`
+
+      // Use PnP's 'snapshot' which performs a GET request handling auth behaviors configured in the SPFI instance.
+      // While 'snapshot' is intended for getting a clone, it executes a fetch effectively.
+      // Alternatively, we could construct a Queryable(this.sp.web, endpoint) but snapshot is cleaner for a quick read.
+      const data = await this.sp.web.snapshot(endpoint);
+
+      const terms = data.value
+
+      if (terms && terms.length > 0) {
+        return {
+             Label: terms[0].names?.[0]?.name || terms[0].name || label,
+             TermGuid: terms[0].id
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`SearchTerm failed (PnP Client):`, e)
+    }
+    return null
   }
 
   // --------------------------------------------------------------------------
