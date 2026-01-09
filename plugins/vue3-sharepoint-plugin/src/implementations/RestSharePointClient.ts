@@ -1019,7 +1019,7 @@ export class RestSharePointClient implements ISharePointClient {
    * this returns the URL to that site (https://tenant/sites/Other),
    * allowing cross-site uploads/queries.
    */
-  private getApiRoot(serverRelativeUrl: string): string {
+  private getApiRoot(urlOrPath: string): string {
     // 1. Get Origin
     let origin = ''
     try {
@@ -1029,11 +1029,14 @@ export class RestSharePointClient implements ISharePointClient {
     }
 
     // 2. Parse Path
+    // Normalize input (handle absolute URLs passed as targetPath)
+    const serverRelativePath = getServerRelativePath(urlOrPath, this.baseUrl)
+
     // Heuristic: SharePoint site collections usually start with /sites/ or /teams/
     // We look for the first 2 segments: /sites/SiteName or /teams/TeamName
     // Or / (root site)
 
-    const path = serverRelativeUrl.startsWith('/') ? serverRelativeUrl : `/${serverRelativeUrl}`
+    const path = serverRelativePath.startsWith('/') ? serverRelativePath : `/${serverRelativePath}`
     const parts = path.split('/').filter(p => p) // Remove empty
 
     if (parts.length >= 2) {
