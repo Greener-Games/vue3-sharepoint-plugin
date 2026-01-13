@@ -20,7 +20,7 @@ import { Logger } from '../utils/debug'
 // Internal Cache Helper (Reused from RestSharePointClient logic)
 class InternalCache {
   private enabled: boolean
-  private prefix = 'sp-anon-cache::'
+  private prefix = 'sp-simple-cache::'
 
   constructor(enabled: boolean) {
     this.enabled = enabled
@@ -53,7 +53,7 @@ class InternalCache {
   }
 }
 
-export class AnonymousSharePointClient implements ISharePointClient {
+export class SimpleRestClient implements ISharePointClient {
   private baseUrl: string
   private cache: InternalCache
   private logger: Logger
@@ -90,6 +90,14 @@ export class AnonymousSharePointClient implements ISharePointClient {
     } = {}
   ): Promise<T> {
     const { method = 'GET', targetPath, isWrite = false, body } = options
+
+    // Block non-GET requests effectively (though we also stub them out)
+    if (method !== 'GET' && !isWrite) { // isWrite check to allow our authorized methods
+        // Actually, our specific methods (create/update) pass isWrite=true.
+        // So we can check if it's a write method and isWrite is false?
+        // But the stubbed methods throw error anyway.
+        // Let's just log writes if they happen unexpectedly.
+    }
 
     let finalEndpoint = endpoint;
     let contextUrl: string | undefined = undefined;
@@ -129,7 +137,7 @@ export class AnonymousSharePointClient implements ISharePointClient {
       Object.entries(options.headers).forEach(([k, v]) => headers.set(k, v))
     }
 
-    this.logger.log(`Anon Request: ${method} ${finalEndpoint}`)
+    this.logger.log(`SimpleRest Request: ${method} ${finalEndpoint}`)
 
     const fetchOptions: RequestInit = {
       method,
@@ -217,7 +225,7 @@ export class AnonymousSharePointClient implements ISharePointClient {
       'Content-Type': 'application/json;odata=verbose',
     })
 
-    // In Anonymous Proxy mode, we assume no Auth Provider is needed (handled by proxy),
+    // In SimpleRest Mode, we assume no Auth Provider is needed (handled by proxy),
     // OR if one is provided in config, it might be used.
 
     if (isWrite) {
@@ -279,11 +287,11 @@ export class AnonymousSharePointClient implements ISharePointClient {
     if (Array.isArray(scope)) scope = scope[0];
 
     if (!scope) {
-        this.logger.error("Anonymous Search requires a specific 'scope' pointing to a list or folder.")
+        this.logger.error("SimpleRest Search requires a specific 'scope' pointing to a list or folder.")
         return { items: [], totalHits: 0, startRow: 0 }
     }
 
-    this.logger.log(`Anonymous Search: Scoped to ${scope}`)
+    this.logger.log(`SimpleRest Search: Scoped to ${scope}`)
 
     // 2. Build OData Query
     const params: string[] = []
@@ -374,7 +382,7 @@ export class AnonymousSharePointClient implements ISharePointClient {
         }
 
     } catch (e) {
-        this.logger.error("Anonymous Search Failed", e);
+        this.logger.error("SimpleRest Search Failed", e);
         return { items: [], totalHits: 0, startRow: 0 }
     }
   }
@@ -569,6 +577,8 @@ export class AnonymousSharePointClient implements ISharePointClient {
     termSetId: string,
     label: string
   ): Promise<{ Label: string; TermGuid: string } | null> {
+      // This is usually a public taxonomy read, might work if anonymous has access.
+      // But commonly taxonomy is locked down. We'll try.
     try {
       const safeLabel = label.replace(/'/g, "''")
       const endpoint = `/_api/v2.1/termStore/termSets/${termSetId}/terms?$filter=labels/any(l:l/name eq '${safeLabel}') or name eq '${safeLabel}'&$select=id,name,labels`
@@ -643,8 +653,8 @@ export class AnonymousSharePointClient implements ISharePointClient {
   // --- Unsupported / Stubbed Operations ---
 
   private notSupported(operation: string): Promise<any> {
-      this.logger.error(`Operation '${operation}' is not supported in Anonymous Mode.`)
-      return Promise.reject(new Error(`Operation '${operation}' is not supported in Anonymous Mode.`));
+      this.logger.error(`Operation '${operation}' is not supported in SimpleRest Mode.`)
+      return Promise.reject(new Error(`Operation '${operation}' is not supported in SimpleRest Mode.`));
   }
 
   async executeBatch(_builder: (batch: IBatch) => void): Promise<void> {
