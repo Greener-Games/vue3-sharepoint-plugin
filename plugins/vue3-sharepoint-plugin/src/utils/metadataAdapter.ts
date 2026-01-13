@@ -1,4 +1,4 @@
-import { ISharePointClient, FieldDefinition } from '../types'
+import type { ISharePointClient, FieldDefinition } from '../types'
 
 export interface FormValue {
   FieldName: string
