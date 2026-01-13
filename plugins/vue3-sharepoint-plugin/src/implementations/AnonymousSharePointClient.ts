@@ -63,7 +63,16 @@ export class AnonymousSharePointClient implements ISharePointClient {
   private digestExpiry: number = 0
 
   constructor(options: SharePointConfig) {
-    this.baseUrl = options.baseUrl.replace(/\/$/, '')
+    let url = options.baseUrl
+    if (
+      options.devBaseUrl &&
+      typeof location !== 'undefined' &&
+      (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ) {
+      url = options.devBaseUrl
+    }
+
+    this.baseUrl = url.replace(/\/$/, '')
     this.cache = new InternalCache(options.enableCache ?? true)
     this.logger = new Logger(options.debug)
   }
@@ -164,8 +173,7 @@ export class AnonymousSharePointClient implements ISharePointClient {
     }
 
     // Robustly check for nested 'd' and 'results'
-    const safeData = data as any;
-    // Use bracket notation to avoid TS complaints about undefined properties
+    const safeData: any = data;
     if (safeData && safeData['d']) {
         const d = safeData['d'];
         if (d && d['results']) {

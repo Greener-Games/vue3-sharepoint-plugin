@@ -73,7 +73,16 @@ export class RestSharePointClient implements ISharePointClient {
   private digestExpiry: number = 0
 
   constructor(options: SharePointConfig) {
-    this.baseUrl = options.baseUrl.replace(/\/$/, '')
+    let url = options.baseUrl
+    if (
+      options.devBaseUrl &&
+      typeof location !== 'undefined' &&
+      (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ) {
+      url = options.devBaseUrl
+    }
+
+    this.baseUrl = url.replace(/\/$/, '')
     this.authProvider = options.authProvider
     this.cache = new InternalCache(options.enableCache ?? true)
     this.logger = new Logger(options.debug)
