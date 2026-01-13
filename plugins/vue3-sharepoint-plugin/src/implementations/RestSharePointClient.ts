@@ -1091,33 +1091,112 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   async searchUsers(query: string): Promise<UserInfo[]> {
-    const endpoint = `/_api/SP.UI.ApplicationPages.ClientPeoplePickerWebServiceInterface.clientPeoplePickerSearchUser`;
+    const pickerEndpoint = `/_api/SP.UI.ApplicationPages.ClientPeoplePickerWebServiceInterface.clientPeoplePickerSearchUser`;
+
     const payload = {
       queryParams: {
         QueryString: query,
         MaximumEntitySuggestions: 15,
         AllowEmailAddresses: true,
-        PrincipalSource: 15, // All sources
-        PrincipalType: 1,   // Users only
+        PrincipalSource: 15,
+        PrincipalType: 1,
+        AllowMultipleEntities: false,
+        AllUrlZones: false,
+        EnabledClaimProviders: "",
+        ForceClaims: false,
+        Required: false,
+        SharePointGroupID: 0,
+        UrlZone: 0
       }
     };
 
-    const response = await this.request<any>(endpoint, {
-      method: 'POST',
-      body: payload,
-      isWrite: true,
-      skipMetadata: true
-    });
+    let finalResults: UserInfo[] = [];
 
-    // The People Picker returns a JSON string inside a string; it needs parsing
-    const results = JSON.parse(response.d.ClientPeoplePickerSearchUser);
+    // 1. Try People Picker (Best for direct directory resolution)
+    try {
+      const response = await this.request<any>(pickerEndpoint, {
+        method: 'POST',
+        body: payload,
+        isWrite: true,
+        skipMetadata: true
+      });
 
-    return results.map((r: any) => ({
-      Id: 0, // People picker doesn't return Site ID until you 'ensureUser'
-      Title: r.DisplayText,
-      Email: r.EntityData.Email || r.Description,
-      LoginName: r.Key
-    }));
+      const pickerResults = JSON.parse(response.d.ClientPeoplePickerSearchUser);
+      finalResults = pickerResults.map((r: any) => ({
+        Id: 0, // Picker doesn't give Site ID
+        Title: r.DisplayText,
+        Email: r.EntityData.Email || r.Description,
+        LoginName: r.Key
+      }));
+    } catch (err) {
+      this.logger.error('People Picker failed', err);
+    }
+
+    //fallback for user search, this is needed if the general search does not match enough results to do more of a Fuzzy search for users
+    if (finalResults.length < 5 && query.length > 2) {
+      try {
+        // 1. Tokenize: Split "Tom Greener" -> ["Tom", "Greener"]
+        const searchTerms = query.trim().split(/\s+/).filter(t => t.length > 0);
+
+        // 2. Helper to Title Case (e.g., "tom" -> "Tom")
+        // SharePoint 'siteusers' is often case-sensitive. Title Casing increases match probability.
+        const toTitleCase = (str: string) =>
+            str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+
+        // 3. Build Broad OData Filter (Use 'OR' to gather candidates)
+        // Logic: Get users who match "Tom" OR "Greener".
+        // We rely on 'OR' because 'AND' in OData fails if strict case/order is slightly off.
+        const filterConditions = searchTerms.map(term => {
+          const cleanTerm = encodeURIComponent(toTitleCase(term.replace(/'/g, "''")));
+          return `(substringof('${cleanTerm}', Title) or substringof('${cleanTerm}', Email))`;
+        });
+
+        // Join with 'or' to get a wide list of potential matches
+        const filterString = filterConditions.join(' or ');
+
+        // Fetch top 20 candidates to ensure we capture the right person even with common names
+        const siteUsersUrl = `/_api/web/siteusers?$filter=${filterString}&$top=20`;
+
+        const siteUsers = await this.request<any[]>(siteUsersUrl);
+
+        // 4. Client-Side Refinement (Case Insensitive + Order Independent)
+        // Now we strictly check that the user matches ALL terms (e.g., must have "Tom" AND "Greener")
+        const lowerQueryParts = searchTerms.map(t => t.toLowerCase());
+
+        siteUsers.forEach((u: any) => {
+          const titleLower = (u.Title || "").toLowerCase();
+          const emailLower = (u.Email || "").toLowerCase();
+
+          // Check: Does this user contain ALL the words from the query?
+          // This allows "Tom Greener" to match "Greener, Tom"
+          const isMatch = lowerQueryParts.every(part =>
+              titleLower.includes(part) || emailLower.includes(part)
+          );
+
+          if (isMatch) {
+            // Deduplicate
+            const exists = finalResults.some(existing =>
+                (existing.Email && u.Email && existing.Email.toLowerCase() === u.Email.toLowerCase()) ||
+                (existing.LoginName && u.LoginName && existing.LoginName.toLowerCase() === u.LoginName.toLowerCase())
+            );
+
+            if (!exists) {
+              finalResults.push({
+                Id: u.Id,
+                Title: u.Title,
+                Email: u.Email,
+                LoginName: u.LoginName
+              });
+            }
+          }
+        });
+
+      } catch (siteErr) {
+        this.logger.warn('Site User fallback search failed', siteErr);
+      }
+    }
+
+    return finalResults;
   }
 
   async ensureUser(loginName: string): Promise<UserInfo> {
