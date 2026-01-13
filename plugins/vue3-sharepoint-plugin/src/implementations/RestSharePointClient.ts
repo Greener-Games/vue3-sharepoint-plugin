@@ -1324,14 +1324,44 @@ export class RestSharePointClient implements ISharePointClient {
     }))
   }
 
-  getVersionHistoryLink(serverRelativeUrl: string): string {
-    // The classic Versions.aspx page can accept a FileName parameter
-    // This works on both SharePoint On-Prem and Online
-    return `${
-      this.baseUrl
-    }/_layouts/15/Versions.aspx?FileName=${encodeURIComponent(
-      serverRelativeUrl
-    )}`
+  async getVersionHistoryLink(serverRelativeUrl: string): Promise<string> {
+    // 1. Escape single quotes for the OData query (e.g. "O'Neil.docx" -> "O''Neil.docx")
+    // We assume serverRelativeUrl is decoded or we need to handle it.
+    // The user provided logic: const safeUrl = fullUrl.replace(/'/g, "''")
+    const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
+    const safeUrl = fullUrl.replace(/'/g, "''")
+
+    // 2. Fetch the Item ID and Parent List ID
+    // We use targetPath to ensure the request goes to the correct site (e.g. /sites/ProposalExpertiseHubUAT/V2)
+    const data = await this.request<any>(
+      `/_api/web/getFileByServerRelativeUrl('${safeUrl}')/ListItemAllFields?$select=Id,ParentList/Id&$expand=ParentList`,
+      {
+        method: 'GET',
+        targetPath: fullUrl, // vital for calculating the correct apiRoot
+      }
+    )
+
+    if (!data || !data.ParentList) {
+      throw new Error(`Could not resolve List ID for file: ${fullUrl}`)
+    }
+
+    const itemId = data.Id
+    const listId = data.ParentList.Id
+
+    // 3. Use builder
+    const fileSiteRoot = this.getApiRoot(fullUrl)
+    return this.getVersionHistoryLinkByItem(listId, itemId, fileSiteRoot)
+  }
+
+  getVersionHistoryLinkByItem(
+    listId: string,
+    itemId: number,
+    webUrl?: string
+  ): string {
+    const root = webUrl ? webUrl.replace(/\/$/, '') : this.baseUrl
+    // Format: .../Versions.aspx?list={GUID}&ID=123
+    // Note: The list GUID should be wrapped in curly braces
+    return `${root}/_layouts/15/Versions.aspx?list={${listId}}&ID=${itemId}`
   }
 
   private isSearchOnlyProp(field: string): boolean {

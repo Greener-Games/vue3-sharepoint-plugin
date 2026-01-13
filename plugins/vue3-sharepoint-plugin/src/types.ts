@@ -291,8 +291,19 @@ export interface ISharePointClient {
 
   /**
    * Generates a link to the native SharePoint Version History page.
+   * Requires a server call to resolve List ID and Item ID.
    */
-  getVersionHistoryLink(serverRelativeUrl: string): string
+  getVersionHistoryLink(serverRelativeUrl: string): Promise<string>
+
+  /**
+   * Generates a link to the native SharePoint Version History page.
+   * Uses provided List ID and Item ID to construct the link synchronously.
+   */
+  getVersionHistoryLinkByItem(
+    listId: string,
+    itemId: number,
+    webUrl?: string
+  ): string
 }
 
 export interface SharePointConfig {
