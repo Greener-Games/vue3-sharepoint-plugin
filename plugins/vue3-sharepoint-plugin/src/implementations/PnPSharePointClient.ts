@@ -39,14 +39,23 @@ export class PnPSharePointClient implements ISharePointClient {
   private logger: Logger
 
   constructor(options: SharePointConfig) {
-    this.baseUrl = options.baseUrl
+    let url = options.baseUrl
+    if (
+      options.devBaseUrl &&
+      typeof location !== 'undefined' &&
+      (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ) {
+      url = options.devBaseUrl
+    }
+
+    this.baseUrl = url
     this.enableCache = !!options.enableCache
     this.logger = new Logger(options.debug)
 
     // 1. Initialize PnPjs with Warning logging to prevent hangs
     // If debug is on, we might want to increase log level, but kept to Warning to avoid spam unless PnPLogging supports it well.
     // For now we use our own logger.
-    this.sp = spfi(options.baseUrl).using(PnPLogging(2)) // 2 = LogLevel.Warning
+    this.sp = spfi(this.baseUrl).using(PnPLogging(2)) // 2 = LogLevel.Warning
 
     // 2. Enable PnPjs Caching for Standard CRUD (if enabled)
     // Note: Search uses its own manual cache below

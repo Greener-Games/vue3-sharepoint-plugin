@@ -7,6 +7,7 @@ export * from './types'
 // Export Implementations (So the user can instantiate them in main.ts)
 export { PnPSharePointClient } from './implementations/PnPSharePointClient'
 export { RestSharePointClient } from './implementations/RestSharePointClient'
+export { SimpleRestClient } from './implementations/SimpleRestClient'
 export { MockSharePointClient } from './implementations/MockSharePointClient'
 export type { MockData } from './implementations/MockSharePointClient'
 

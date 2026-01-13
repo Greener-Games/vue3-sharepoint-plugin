@@ -297,6 +297,12 @@ export interface ISharePointClient {
 
 export interface SharePointConfig {
   baseUrl: string
+  /**
+   * Optional: Dev endpoint to use when running on localhost.
+   * If provided, the client will automatically switch to this URL
+   * when location.hostname is 'localhost' or '127.0.0.1'.
+   */
+  devBaseUrl?: string
   authProvider?: () => Promise<Record<string, string>>
   /**
    * Enable caching for GET requests (User, Fields, Choices).
