@@ -133,6 +133,7 @@ export function useSharePoint() {
     // Version History
     getVersions: client.getFileVersions.bind(client),
     historyLink: client.getVersionHistoryLink.bind(client),
+    historyLinkByItem: client.getVersionHistoryLinkByItem.bind(client),
 
     hasPermission,
     PermissionKind, // Expose Enum

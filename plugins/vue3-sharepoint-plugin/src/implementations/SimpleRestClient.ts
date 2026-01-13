@@ -529,8 +529,47 @@ export class SimpleRestClient implements ISharePointClient {
     }))
   }
 
-  getVersionHistoryLink(serverRelativeUrl: string): string {
+  async getVersionHistoryLink(serverRelativeUrl: string): Promise<string> {
+    // We can simulate an async call or just return the old link format if we can't easily resolve ListID/ItemID
+    // SimpleRest usually operates where we don't have full permissions or API access.
+    // However, to satisfy the interface, we must return a Promise.
+
+    // Attempt to resolve if possible, else fallback to FileName based link which is valid.
+    // But the user said "currently one is failing".
+    // If FileName based link is failing, we should try the ID based one.
+    // But in SimpleRest/Anonymous, getting ListItemAllFields might fail if strictly limited.
+    // Let's try to replicate the Rest logic, as SimpleRest inherits request capabilities.
+
+    try {
+        const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
+        const safeUrl = fullUrl.replace(/'/g, "''")
+
+        const data = await this.request<any>(
+            `/_api/web/getFileByServerRelativeUrl('${safeUrl}')/ListItemAllFields?$select=Id,ParentList/Id&$expand=ParentList`,
+            {
+                method: 'GET',
+                targetPath: fullUrl
+            }
+        )
+
+        if (data && data.ParentList) {
+            const apiRoot = this.getApiRoot(fullUrl);
+            return this.getVersionHistoryLinkByItem(data.ParentList.Id, data.Id, apiRoot);
+        }
+    } catch {
+        // Fallback or ignore
+    }
+
     return `${this.baseUrl}/_layouts/15/Versions.aspx?FileName=${encodeURIComponent(serverRelativeUrl)}`
+  }
+
+  getVersionHistoryLinkByItem(
+    listId: string,
+    itemId: number,
+    webUrl?: string
+  ): string {
+    const root = webUrl ? webUrl.replace(/\/$/, '') : this.baseUrl
+    return `${root}/_layouts/15/Versions.aspx?list={${listId}}&ID=${itemId}`
   }
 
   async getListFields(list: string, webUrl?: string) {

@@ -754,12 +754,30 @@ export class PnPSharePointClient implements ISharePointClient {
     }))
   }
 
-  getVersionHistoryLink(serverRelativeUrl: string): string {
-    return `${
-      this.baseUrl || ''
-    }/_layouts/15/Versions.aspx?FileName=${encodeURIComponent(
-      serverRelativeUrl
-    )}`
+  async getVersionHistoryLink(serverRelativeUrl: string): Promise<string> {
+    const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
+
+    // Use PnP to get Item and List info
+    // We assume the file is in a list/library that has a List ID
+    const file = this.sp.web.getFileByServerRelativePath(fullUrl)
+    const item = await file.listItemAllFields.select('Id', 'ParentList/Id').expand('ParentList')()
+
+    if (!item || !item.ParentList) {
+        // Fallback to old behavior if we can't find list info (e.g. it's outside a list?)
+        // Or throw error
+         throw new Error(`Could not resolve List ID for file: ${fullUrl}`)
+    }
+
+    return this.getVersionHistoryLinkByItem(item.ParentList.Id, item.Id)
+  }
+
+  getVersionHistoryLinkByItem(
+    listId: string,
+    itemId: number,
+    webUrl?: string
+  ): string {
+    const root = webUrl ? webUrl.replace(/\/$/, '') : this.baseUrl
+    return `${root}/_layouts/15/Versions.aspx?list={${listId}}&ID=${itemId}`
   }
 
   // --------------------------------------------------------------------------

@@ -449,8 +449,17 @@ export class MockSharePointClient implements ISharePointClient {
     return this.data.fileVersions?.[url] || []
   }
 
-  getVersionHistoryLink(url: string): string {
+  async getVersionHistoryLink(url: string): Promise<string> {
+    await this.wait()
     return `#mock-history/${url}`
+  }
+
+  getVersionHistoryLinkByItem(
+    listId: string,
+    itemId: number,
+    _webUrl?: string
+  ): string {
+    return `#mock-history/${listId}/${itemId}`
   }
 
   async uploadFile(
