@@ -30,7 +30,7 @@ import '@pnp/sp/site-users/web'
 import '@pnp/sp/site-groups/web'
 import '@pnp/sp/batching'
 import '@pnp/sp/attachments'
-import '@pnp/sp/search'
+import { SortDirection } from '@pnp/sp/search'
 
 export class PnPSharePointClient implements ISharePointClient {
   private sp: SPFI
@@ -141,6 +141,13 @@ export class PnPSharePointClient implements ISharePointClient {
         RowLimit: options.rowLimit || 10,
         StartRow: options.startRow || 0,
         SelectProperties: searchSelect,
+        SortList: options.sortList?.map((s) => ({
+          Property: s.property,
+          Direction:
+            s.direction === 'ascending'
+              ? SortDirection.Ascending
+              : SortDirection.Descending,
+        })),
         TrimDuplicates: false,
         // Explicitly requesting highlights for content
         HitHighlightedProperties: ['Contents', 'Title'],

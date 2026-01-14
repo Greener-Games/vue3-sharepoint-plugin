@@ -60,6 +60,14 @@ export interface SearchRequestOptions {
    * Calculated from the 'Path' managed property.
    */
   includeRelativePath?: boolean
+  /**
+   * Defines the sort order for the search results.
+   * Array of objects specifying property and direction.
+   */
+  sortList?: Array<{
+    property: string
+    direction: 'ascending' | 'descending'
+  }>
 }
 
 export interface SearchResult<T> {
