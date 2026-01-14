@@ -246,6 +246,22 @@ export class MockSharePointClient implements ISharePointClient {
       })
     }
 
+    // --- STEP 4.5: Sorting (Mock) ---
+    if (opts.sortList && opts.sortList.length > 0) {
+      allItems.sort((a, b) => {
+        for (const sort of opts.sortList!) {
+          const valA = a[sort.property]
+          const valB = b[sort.property]
+
+          if (valA === valB) continue
+
+          const comparison = valA > valB ? 1 : -1
+          return sort.direction === 'ascending' ? comparison : -comparison
+        }
+        return 0
+      })
+    }
+
     // --- STEP 5: Pagination & Hydration & Mapping ---
     const totalHits = allItems.length
     const start = opts.startRow || 0

@@ -328,6 +328,14 @@ export class RestSharePointClient implements ISharePointClient {
         SummaryLength: 250,
         EnableStemming: true,
         TrimDuplicates: false,
+        SortList: opts.sortList
+          ? {
+              results: opts.sortList.map((s) => ({
+                Property: s.property,
+                Direction: s.direction === 'ascending' ? 0 : 1,
+              })),
+            }
+          : undefined,
       },
     }
 
