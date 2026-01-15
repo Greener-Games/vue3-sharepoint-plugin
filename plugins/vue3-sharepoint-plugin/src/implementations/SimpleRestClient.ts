@@ -87,9 +87,10 @@ export class SimpleRestClient implements ISharePointClient {
       body?: any
       isWrite?: boolean
       skipMetadata?: boolean
+      abortSignal?: AbortSignal
     } = {}
   ): Promise<T> {
-    const { method = 'GET', targetPath, isWrite = false, body } = options
+    const { method = 'GET', targetPath, isWrite = false, body, abortSignal } = options
 
     // Block non-GET requests effectively (though we also stub them out)
     if (method !== 'GET' && !isWrite) { // isWrite check to allow our authorized methods
@@ -142,6 +143,7 @@ export class SimpleRestClient implements ISharePointClient {
     const fetchOptions: RequestInit = {
       method,
       headers,
+      signal: abortSignal
     }
 
     if (body) {
@@ -281,7 +283,7 @@ export class SimpleRestClient implements ISharePointClient {
   }
 
   // --- Search Implementation (via Lists) ---
-  async search<T = any>(opts: SearchRequestOptions): Promise<SearchResult<T>> {
+  async search<T = any>(opts: SearchRequestOptions, abortSignal?: AbortSignal): Promise<SearchResult<T>> {
     // 1. Validate Scope
     let scope = opts.scope;
     if (Array.isArray(scope)) scope = scope[0];
@@ -358,7 +360,7 @@ export class SimpleRestClient implements ISharePointClient {
     const endpoint = `/_api/web/GetList(@v)/items?@v='${scopePath}'&${queryString}`;
 
     try {
-        const results = await this.request<any[]>(endpoint, { targetPath: scopePath });
+        const results = await this.request<any[]>(endpoint, { targetPath: scopePath, abortSignal });
 
         // Map to SearchResult
         const items = results.map(item => {
@@ -389,8 +391,8 @@ export class SimpleRestClient implements ISharePointClient {
 
   // --- Read Methods (Supported) ---
 
-  async getWebInfo(): Promise<WebInfo> {
-    const w = await this.request<any>(`/_api/web`)
+  async getWebInfo(abortSignal?: AbortSignal): Promise<WebInfo> {
+    const w = await this.request<any>(`/_api/web`, { abortSignal })
     return {
       Id: w.Id,
       Title: w.Title,
@@ -399,8 +401,8 @@ export class SimpleRestClient implements ISharePointClient {
     }
   }
 
-  async getSubwebs(): Promise<WebInfo[]> {
-    const webs = await this.request<any[]>(`/_api/web/webs`)
+  async getSubwebs(abortSignal?: AbortSignal): Promise<WebInfo[]> {
+    const webs = await this.request<any[]>(`/_api/web/webs`, { abortSignal })
     return webs.map((w) => ({
       Id: w.Id,
       Title: w.Title,
@@ -409,8 +411,8 @@ export class SimpleRestClient implements ISharePointClient {
     }))
   }
 
-  async getLists(): Promise<ListInfo[]> {
-    const lists = await this.request<any[]>(`/_api/web/lists`)
+  async getLists(abortSignal?: AbortSignal): Promise<ListInfo[]> {
+    const lists = await this.request<any[]>(`/_api/web/lists`, { abortSignal })
     return lists.map((l) => ({
       Id: l.Id,
       Title: l.Title,
@@ -421,9 +423,10 @@ export class SimpleRestClient implements ISharePointClient {
     }))
   }
 
-  async getList(listTitle: string): Promise<ListInfo> {
+  async getList(listTitle: string, abortSignal?: AbortSignal): Promise<ListInfo> {
     const l = await this.request<any>(
-      `/_api/web/lists/getbytitle('${listTitle}')`
+      `/_api/web/lists/getbytitle('${listTitle}')`,
+      { abortSignal }
     )
     return {
       Id: l.Id,
@@ -439,7 +442,8 @@ export class SimpleRestClient implements ISharePointClient {
     list: string,
     id: number,
     select?: string[],
-    expand?: string[]
+    expand?: string[],
+    abortSignal?: AbortSignal
   ) {
     const params: string[] = []
     if (select && select.length > 0) params.push(`$select=${select.join(',')}`)
@@ -447,13 +451,15 @@ export class SimpleRestClient implements ISharePointClient {
 
     const q = params.length > 0 ? `?${params.join('&')}` : ''
     return await this.request(
-      `/_api/web/lists/getbytitle('${list}')/items(${id})${q}`
+      `/_api/web/lists/getbytitle('${list}')/items(${id})${q}`,
+      { abortSignal }
     )
   }
 
   async getListItems<T = any>(
     listTitle: string,
-    options?: ListItemQueryOptions
+    options?: ListItemQueryOptions,
+    abortSignal?: AbortSignal
   ): Promise<T[]> {
     const params: string[] = []
 
@@ -476,16 +482,19 @@ export class SimpleRestClient implements ISharePointClient {
 
     const q = params.length > 0 ? `?${params.join('&')}` : ''
     return await this.request(
-      `/_api/web/lists/getbytitle('${listTitle}')/items${q}`
+      `/_api/web/lists/getbytitle('${listTitle}')/items${q}`,
+      { abortSignal }
     )
   }
 
   async getItemAttachments(
     list: string,
-    id: number
+    id: number,
+    abortSignal?: AbortSignal
   ): Promise<AttachmentInfo[]> {
     const results = await this.request<any[]>(
-      `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles`
+      `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles`,
+      { abortSignal }
     )
     return results.map((a) => ({
       FileName: a.FileName,
@@ -493,7 +502,7 @@ export class SimpleRestClient implements ISharePointClient {
     }))
   }
 
-  async downloadFile(url: string) {
+  async downloadFile(url: string, abortSignal?: AbortSignal) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
     const apiRoot = this.getApiRoot(fullUrl)
 
@@ -504,15 +513,15 @@ export class SimpleRestClient implements ISharePointClient {
     const endpoint = `${apiRoot}/_api/web/getfilebyserverrelativeurl('${fullUrl}')/$value`;
 
     this.logger.log(`Anon Download: ${endpoint}`);
-    const res = await fetch(endpoint, { headers });
+    const res = await fetch(endpoint, { headers, signal: abortSignal });
     if (!res.ok) throw new Error(`Download failed: ${res.statusText}`);
     return await res.blob()
   }
 
-  async getFileVersions(url: string): Promise<FileVersion[]> {
+  async getFileVersions(url: string, abortSignal?: AbortSignal): Promise<FileVersion[]> {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
     const endpoint = `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/versions?$expand=CreatedBy`
-    const results = await this.request<any[]>(endpoint, { targetPath: fullUrl })
+    const results = await this.request<any[]>(endpoint, { targetPath: fullUrl, abortSignal })
 
     return results.map((v: any) => ({
       VersionLabel: v.VersionLabel,
@@ -529,7 +538,7 @@ export class SimpleRestClient implements ISharePointClient {
     }))
   }
 
-  async getVersionHistoryLink(serverRelativeUrl: string): Promise<string> {
+  async getVersionHistoryLink(serverRelativeUrl: string, abortSignal?: AbortSignal): Promise<string> {
     // We can simulate an async call or just return the old link format if we can't easily resolve ListID/ItemID
     // SimpleRest usually operates where we don't have full permissions or API access.
     // However, to satisfy the interface, we must return a Promise.
@@ -548,7 +557,8 @@ export class SimpleRestClient implements ISharePointClient {
             `/_api/web/getFileByServerRelativeUrl('${safeUrl}')/ListItemAllFields?$select=Id,ParentList/Id&$expand=ParentList`,
             {
                 method: 'GET',
-                targetPath: fullUrl
+                targetPath: fullUrl,
+                abortSignal
             }
         )
 
@@ -572,13 +582,13 @@ export class SimpleRestClient implements ISharePointClient {
     return `${root}/_layouts/15/Versions.aspx?list={${listId}}&ID=${itemId}`
   }
 
-  async getListFields(list: string, webUrl?: string) {
+  async getListFields(list: string, webUrl?: string, abortSignal?: AbortSignal) {
     const cacheKey = `Fields:${webUrl || 'current'}:${list}`
     const cached = this.cache.get<FieldDefinition[]>(cacheKey)
     if (cached) return cached
 
     const endpoint = `/_api/web/lists/getbytitle('${list}')/fields?$filter=Hidden eq false`;
-    const requestOptions: any = {};
+    const requestOptions: any = { abortSignal };
     if (webUrl) {
         requestOptions.targetPath = webUrl;
     }
@@ -598,13 +608,14 @@ export class SimpleRestClient implements ISharePointClient {
     return mapped
   }
 
-  async getFieldChoices(list: string, field: string) {
+  async getFieldChoices(list: string, field: string, abortSignal?: AbortSignal) {
     const cacheKey = `Choices:${list}:${field}`
     const cached = this.cache.get<string[]>(cacheKey)
     if (cached) return cached
 
     const data = await this.request<any>(
-      `/_api/web/lists/getbytitle('${list}')/fields/getByInternalNameOrTitle('${field}')`
+      `/_api/web/lists/getbytitle('${list}')/fields/getByInternalNameOrTitle('${field}')`,
+      { abortSignal }
     )
 
     const choices = data.Choices?.results || []
@@ -614,14 +625,15 @@ export class SimpleRestClient implements ISharePointClient {
 
   async searchTerm(
     termSetId: string,
-    label: string
+    label: string,
+    abortSignal?: AbortSignal
   ): Promise<{ Label: string; TermGuid: string } | null> {
       // This is usually a public taxonomy read, might work if anonymous has access.
       // But commonly taxonomy is locked down. We'll try.
     try {
       const safeLabel = label.replace(/'/g, "''")
       const endpoint = `/_api/v2.1/termStore/termSets/${termSetId}/terms?$filter=labels/any(l:l/name eq '${safeLabel}') or name eq '${safeLabel}'&$select=id,name,labels`
-      const response = await this.request<{ value: any[] }>(endpoint)
+      const response = await this.request<{ value: any[] }>(endpoint, { abortSignal })
       const terms = response.value
       if (terms && terms.length > 0) {
         const t = terms[0]
@@ -638,7 +650,7 @@ export class SimpleRestClient implements ISharePointClient {
 
   // --- Write Operations (Partial Support) ---
 
-  async createListItem(listTitle: string, payload: Record<string, any>): Promise<any> {
+  async createListItem(listTitle: string, payload: Record<string, any>, abortSignal?: AbortSignal): Promise<any> {
       // 1. Get Entity Type (required for verbose JSON)
       const type = await this.getListEntityType(listTitle);
 
@@ -652,11 +664,12 @@ export class SimpleRestClient implements ISharePointClient {
       return await this.request(`/_api/web/lists/getbytitle('${listTitle}')/items`, {
           method: 'POST',
           body,
-          isWrite: true
+          isWrite: true,
+          abortSignal
       });
   }
 
-  async updateListItem(listTitle: string, id: number, payload: Record<string, any>): Promise<void> {
+  async updateListItem(listTitle: string, id: number, payload: Record<string, any>, abortSignal?: AbortSignal): Promise<void> {
       const type = await this.getListEntityType(listTitle);
 
       const body = {
@@ -671,11 +684,12 @@ export class SimpleRestClient implements ISharePointClient {
             'X-HTTP-Method': 'MERGE',
             'IF-MATCH': '*', // Force update, assumes concurrency is not handled
           },
-          isWrite: true
+          isWrite: true,
+          abortSignal
       });
   }
 
-  async deleteListItem(listTitle: string, id: number): Promise<void> {
+  async deleteListItem(listTitle: string, id: number, abortSignal?: AbortSignal): Promise<void> {
       // User specifically requested "allow for the post requests to happen for updating a list item".
       // They did not explicitly ask for delete, but it's consistent CRUD.
       // I'll enable it.
@@ -686,6 +700,7 @@ export class SimpleRestClient implements ISharePointClient {
           'IF-MATCH': '*',
         },
         isWrite: true,
+        abortSignal
       })
   }
 
@@ -696,70 +711,70 @@ export class SimpleRestClient implements ISharePointClient {
       return Promise.reject(new Error(`Operation '${operation}' is not supported in SimpleRest Mode.`));
   }
 
-  async executeBatch(_builder: (batch: IBatch) => void): Promise<void> {
+  async executeBatch(_builder: (batch: IBatch) => void, _abortSignal?: AbortSignal): Promise<void> {
       return this.notSupported('executeBatch');
   }
-  async addAttachment(_listTitle: string, _itemId: number, _fileName: string, _file: Blob | ArrayBuffer): Promise<void> {
+  async addAttachment(_listTitle: string, _itemId: number, _fileName: string, _file: Blob | ArrayBuffer, _abortSignal?: AbortSignal): Promise<void> {
       return this.notSupported('addAttachment');
   }
-  async deleteAttachment(_listTitle: string, _itemId: number, _fileName: string): Promise<void> {
+  async deleteAttachment(_listTitle: string, _itemId: number, _fileName: string, _abortSignal?: AbortSignal): Promise<void> {
       return this.notSupported('deleteAttachment');
   }
-  async uploadFile(_serverRelativeUrl: string, _fileName: string, _file: Blob | ArrayBuffer): Promise<string> {
+  async uploadFile(_serverRelativeUrl: string, _fileName: string, _file: Blob | ArrayBuffer, _abortSignal?: AbortSignal): Promise<string> {
       return this.notSupported('uploadFile');
   }
-  async updateFileMetadata(_serverRelativeUrl: string, _payload: Record<string, any>): Promise<void> {
+  async updateFileMetadata(_serverRelativeUrl: string, _payload: Record<string, any>, _abortSignal?: AbortSignal): Promise<void> {
       return this.notSupported('updateFileMetadata');
   }
-  async deleteFile(_serverRelativeUrl: string): Promise<void> {
+  async deleteFile(_serverRelativeUrl: string, _abortSignal?: AbortSignal): Promise<void> {
       return this.notSupported('deleteFile');
   }
-  async createFolder(_serverRelativeUrl: string): Promise<void> {
+  async createFolder(_serverRelativeUrl: string, _abortSignal?: AbortSignal): Promise<void> {
       return this.notSupported('createFolder');
   }
-  async createList(_title: string, _description?: string, _template?: number): Promise<ListInfo> {
+  async createList(_title: string, _description?: string, _template?: number, _abortSignal?: AbortSignal): Promise<ListInfo> {
       return this.notSupported('createList');
   }
-  async deleteList(_title: string): Promise<void> {
+  async deleteList(_title: string, _abortSignal?: AbortSignal): Promise<void> {
       return this.notSupported('deleteList');
   }
-  async ensureUser(_loginName: string): Promise<UserInfo> {
+  async ensureUser(_loginName: string, _abortSignal?: AbortSignal): Promise<UserInfo> {
       return this.notSupported('ensureUser');
   }
-  async addUserToGroup(_groupName: string, _loginName: string): Promise<void> {
+  async addUserToGroup(_groupName: string, _loginName: string, _abortSignal?: AbortSignal): Promise<void> {
       return this.notSupported('addUserToGroup');
   }
-  async removeUserFromGroup(_groupName: string, _loginName: string): Promise<void> {
+  async removeUserFromGroup(_groupName: string, _loginName: string, _abortSignal?: AbortSignal): Promise<void> {
       return this.notSupported('removeUserFromGroup');
   }
-  async createGroup(_groupName: string, _description?: string): Promise<SiteGroup> {
+  async createGroup(_groupName: string, _description?: string, _abortSignal?: AbortSignal): Promise<SiteGroup> {
       return this.notSupported('createGroup');
   }
 
   // User methods - Current User might return 'Anonymous' or error
-  async getCurrentUser(): Promise<UserInfo> {
+  async getCurrentUser(abortSignal?: AbortSignal): Promise<UserInfo> {
       try {
-          return await this.request(`/_api/web/currentuser`);
+          return await this.request(`/_api/web/currentuser`, { abortSignal });
       } catch (e) {
           // Fallback for anonymous
           return { Id: 0, Title: "Anonymous", Email: "", LoginName: "" };
       }
   }
 
-  async getSiteUsers(): Promise<UserInfo[]> {
+  async getSiteUsers(abortSignal?: AbortSignal): Promise<UserInfo[]> {
      // Usually blocked for anonymous
      return this.notSupported('getSiteUsers');
   }
 
-  async searchUsers(_query: string): Promise<UserInfo[]> {
+  async searchUsers(_query: string, _abortSignal?: AbortSignal): Promise<UserInfo[]> {
      return this.notSupported('searchUsers');
   }
 
-  async getUserGroups(_email?: string): Promise<SiteGroup[]> {
+  async getUserGroups(_email?: string, _abortSignal?: AbortSignal): Promise<SiteGroup[]> {
      return this.notSupported('getUserGroups');
   }
 
-  async getUserEffectivePermissions(_email?: string): Promise<SPBasePermissions> {
+  async getUserEffectivePermissions(_email?: string, _abortSignal?: AbortSignal): Promise<SPBasePermissions> {
      // Return empty/readonly permissions
      return { High: 0, Low: 1 }; // ViewListItems?
   }

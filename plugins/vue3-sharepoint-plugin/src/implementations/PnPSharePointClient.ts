@@ -82,7 +82,8 @@ export class PnPSharePointClient implements ISharePointClient {
   // --------------------------------------------------------------------------
 
   async search<T = any>(
-    options: SearchRequestOptions
+    options: SearchRequestOptions,
+    _abortSignal?: AbortSignal
   ): Promise<SearchResult<T>> {
     const cacheKey = this.enableCache ? this.generateSearchKey(options) : ''
 
@@ -136,6 +137,7 @@ export class PnPSharePointClient implements ISharePointClient {
       // Dedupe
       searchSelect = [...new Set(searchSelect)]
 
+      // TODO: Pass AbortSignal if/when PnPjs supports per-request signal cleanly
       const searchResults = await this.sp.search({
         Querytext: kql,
         RowLimit: options.rowLimit || 10,
@@ -158,10 +160,11 @@ export class PnPSharePointClient implements ISharePointClient {
 
       this.logger.log(`Search Results:`, searchResults)
 
-      // @ts-ignore - PnPjs types might be slightly off for search results structure in strict mode
+      // Cast to any to access potentially hidden or strict properties
+      const anyResults = searchResults as any
       const relevantResults =
-        searchResults.PrimaryQueryResult?.RelevantResults ||
-        searchResults.Raw?.PrimaryQueryResult?.RelevantResults
+        anyResults.PrimaryQueryResult?.RelevantResults ||
+        anyResults.Raw?.PrimaryQueryResult?.RelevantResults
 
       if (!relevantResults) {
         return { items: [], totalHits: 0, startRow: options.startRow || 0 }
@@ -235,24 +238,35 @@ export class PnPSharePointClient implements ISharePointClient {
 
       // G. Final Mapping
       if (options.mapping) {
-        items = items.map((map: any) => {
-          const out: any = {}
+        items = items.map((itemAny: any) => {
+          const out: Record<string, any> = {}
+          const map = (itemAny || {}) as Record<string, any>
 
-          Object.entries(options.mapping!).forEach(([k, v]) => {
+          // Use local variable to satisfy TS strict null checks
+          const mapping = options.mapping!
+          Object.entries(mapping).forEach(([k, v]) => {
             // 1. Get Value from Source (support dot notation e.g. "Author.Title")
             let val = map
             if (k.includes('.')) {
               const parts = k.split('.')
               for (const p of parts) {
-                val = val ? val[p] : null
+                // Ensure val is treated as object for indexing
+                if (val && typeof val === 'object') {
+                    // @ts-ignore
+                    val = val[p]
+                } else {
+                    val = null
+                }
               }
             } else {
               val = map[k]
             }
 
+            const destKey = v as string; // Ensure TS knows v is string
+
             // 2. Assign Value to Destination (support dot notation e.g. "owner.name")
-            if (v.includes('.')) {
-              const parts = v.split('.')
+            if (destKey.includes('.')) {
+              const parts = destKey.split('.')
               let current = out
               for (let i = 0; i < parts.length - 1; i++) {
                 const part = parts[i]
@@ -261,7 +275,7 @@ export class PnPSharePointClient implements ISharePointClient {
               }
               current[parts[parts.length - 1]] = val
             } else {
-              out[v] = val
+              out[destKey] = val
             }
           })
 
@@ -293,7 +307,7 @@ export class PnPSharePointClient implements ISharePointClient {
   // 2. BATCHING
   // --------------------------------------------------------------------------
 
-  async executeBatch(builder: (batch: IBatch) => void): Promise<void> {
+  async executeBatch(builder: (batch: IBatch) => void, _abortSignal?: AbortSignal): Promise<void> {
     const [batchedWeb, execute] = this.sp.web.batched()
 
     const proxy: IBatch = {
@@ -318,7 +332,8 @@ export class PnPSharePointClient implements ISharePointClient {
 
   async createListItem<T = any>(
     listTitle: string,
-    payload: Record<string, any>
+    payload: Record<string, any>,
+    _abortSignal?: AbortSignal
   ): Promise<T> {
     const r = await this.sp.web.lists.getByTitle(listTitle).items.add(payload)
     return r.data as T
@@ -327,7 +342,8 @@ export class PnPSharePointClient implements ISharePointClient {
   async updateListItem(
     listTitle: string,
     id: number,
-    payload: Record<string, any>
+    payload: Record<string, any>,
+    _abortSignal?: AbortSignal
   ): Promise<void> {
     await this.sp.web.lists
       .getByTitle(listTitle)
@@ -335,7 +351,7 @@ export class PnPSharePointClient implements ISharePointClient {
       .update(payload)
   }
 
-  async deleteListItem(listTitle: string, id: number): Promise<void> {
+  async deleteListItem(listTitle: string, id: number, _abortSignal?: AbortSignal): Promise<void> {
     await this.sp.web.lists.getByTitle(listTitle).items.getById(id).recycle()
   }
 
@@ -343,7 +359,8 @@ export class PnPSharePointClient implements ISharePointClient {
     listTitle: string,
     id: number,
     select?: string[],
-    expand?: string[]
+    expand?: string[],
+    _abortSignal?: AbortSignal
   ): Promise<T> {
     let q = this.sp.web.lists.getByTitle(listTitle).items.getById(id)
     if (select && select.length > 0) {
@@ -357,7 +374,8 @@ export class PnPSharePointClient implements ISharePointClient {
 
   async getListItems<T = any>(
     listTitle: string,
-    options?: ListItemQueryOptions
+    options?: ListItemQueryOptions,
+    _abortSignal?: AbortSignal
   ): Promise<T[]> {
     let q = this.sp.web.lists.getByTitle(listTitle).items
 
@@ -382,7 +400,8 @@ export class PnPSharePointClient implements ISharePointClient {
 
   async getItemAttachments(
     listTitle: string,
-    itemId: number
+    itemId: number,
+    _abortSignal?: AbortSignal
   ): Promise<AttachmentInfo[]> {
     const attachments = await this.sp.web.lists
       .getByTitle(listTitle)
@@ -398,7 +417,8 @@ export class PnPSharePointClient implements ISharePointClient {
     listTitle: string,
     itemId: number,
     fileName: string,
-    file: Blob | ArrayBuffer
+    file: Blob | ArrayBuffer,
+    _abortSignal?: AbortSignal
   ): Promise<void> {
     await this.sp.web.lists
       .getByTitle(listTitle)
@@ -409,7 +429,8 @@ export class PnPSharePointClient implements ISharePointClient {
   async deleteAttachment(
     listTitle: string,
     itemId: number,
-    fileName: string
+    fileName: string,
+    _abortSignal?: AbortSignal
   ): Promise<void> {
     await this.sp.web.lists
       .getByTitle(listTitle)
@@ -425,7 +446,8 @@ export class PnPSharePointClient implements ISharePointClient {
   async uploadFile(
     serverRelativeUrl: string,
     fileName: string,
-    file: Blob | ArrayBuffer
+    file: Blob | ArrayBuffer,
+    _abortSignal?: AbortSignal
   ): Promise<string> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     // PnP v3/v4: To target a different web (cross-site), we need to create a new Web instance with that URL.
@@ -474,14 +496,15 @@ export class PnPSharePointClient implements ISharePointClient {
     return (r as any).data.ServerRelativeUrl
   }
 
-  async downloadFile(serverRelativeUrl: string): Promise<Blob> {
+  async downloadFile(serverRelativeUrl: string, _abortSignal?: AbortSignal): Promise<Blob> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     return await this.sp.web.getFileByServerRelativePath(fullUrl).getBlob()
   }
 
   async updateFileMetadata(
     serverRelativeUrl: string,
-    payload: Record<string, any>
+    payload: Record<string, any>,
+    _abortSignal?: AbortSignal
   ): Promise<void> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     // Note: getFileByServerRelativePath works cross-web if the file is in the same site collection usually?
@@ -504,7 +527,8 @@ export class PnPSharePointClient implements ISharePointClient {
     // 3. Update using ValidateUpdateListItem
     // Use the item instance to call the method
     const item = file.listItemAllFields
-    const results = await item.validateUpdateListItem(formValues)
+    // Cast to any to bypass strict typing on ISPInstance which might miss validateUpdateListItem in this version of typings
+    const results = await (item as any).validateUpdateListItem(formValues)
 
     // Check for errors
     const errors = results.filter((r: any) => r.ErrorCode !== 0)
@@ -514,12 +538,12 @@ export class PnPSharePointClient implements ISharePointClient {
     }
   }
 
-  async deleteFile(serverRelativeUrl: string): Promise<void> {
+  async deleteFile(serverRelativeUrl: string, _abortSignal?: AbortSignal): Promise<void> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     await this.sp.web.getFileByServerRelativePath(fullUrl).recycle()
   }
 
-  async createFolder(serverRelativeUrl: string): Promise<void> {
+  async createFolder(serverRelativeUrl: string, _abortSignal?: AbortSignal): Promise<void> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     await this.sp.web.folders.addUsingPath(fullUrl)
   }
@@ -528,7 +552,7 @@ export class PnPSharePointClient implements ISharePointClient {
   // 5. WEBS & LISTS (STRUCTURE)
   // --------------------------------------------------------------------------
 
-  async getWebInfo(): Promise<WebInfo> {
+  async getWebInfo(_abortSignal?: AbortSignal): Promise<WebInfo> {
     const w = await this.sp.web()
     return {
       Id: w.Id,
@@ -538,7 +562,7 @@ export class PnPSharePointClient implements ISharePointClient {
     }
   }
 
-  async getSubwebs(): Promise<WebInfo[]> {
+  async getSubwebs(_abortSignal?: AbortSignal): Promise<WebInfo[]> {
     const webs = await this.sp.web.webs()
     return webs.map((w) => ({
       Id: w.Id,
@@ -548,7 +572,7 @@ export class PnPSharePointClient implements ISharePointClient {
     }))
   }
 
-  async getLists(): Promise<ListInfo[]> {
+  async getLists(_abortSignal?: AbortSignal): Promise<ListInfo[]> {
     const lists = await this.sp.web.lists()
     return lists.map((l) => ({
       Id: l.Id,
@@ -560,7 +584,7 @@ export class PnPSharePointClient implements ISharePointClient {
     }))
   }
 
-  async getList(listTitle: string): Promise<ListInfo> {
+  async getList(listTitle: string, _abortSignal?: AbortSignal): Promise<ListInfo> {
     const l = await this.sp.web.lists.getByTitle(listTitle)()
     return {
       Id: l.Id,
@@ -575,7 +599,8 @@ export class PnPSharePointClient implements ISharePointClient {
   async createList(
     title: string,
     description?: string,
-    template = 100
+    template = 100,
+    _abortSignal?: AbortSignal
   ): Promise<ListInfo> {
     const r = await this.sp.web.lists.add(title, description, template)
     // @ts-ignore - PnPjs add() returns { data: ..., list: ... }
@@ -590,7 +615,7 @@ export class PnPSharePointClient implements ISharePointClient {
     }
   }
 
-  async deleteList(title: string): Promise<void> {
+  async deleteList(title: string, _abortSignal?: AbortSignal): Promise<void> {
     await this.sp.web.lists.getByTitle(title).delete()
   }
 
@@ -598,15 +623,15 @@ export class PnPSharePointClient implements ISharePointClient {
   // 6. USERS & GROUPS
   // --------------------------------------------------------------------------
 
-  async getCurrentUser(): Promise<UserInfo> {
+  async getCurrentUser(_abortSignal?: AbortSignal): Promise<UserInfo> {
     return await this.sp.web.currentUser()
   }
 
-  async getSiteUsers(): Promise<UserInfo[]> {
+  async getSiteUsers(_abortSignal?: AbortSignal): Promise<UserInfo[]> {
     return await this.sp.web.siteUsers()
   }
 
-  async searchUsers(query: string): Promise<UserInfo[]> {
+  async searchUsers(query: string, _abortSignal?: AbortSignal): Promise<UserInfo[]> {
     if (!query) return []
 
     return await this.sp.web.siteUsers.filter(
@@ -614,20 +639,20 @@ export class PnPSharePointClient implements ISharePointClient {
     )()
   }
 
-  async ensureUser(loginName: string): Promise<UserInfo> {
+  async ensureUser(loginName: string, _abortSignal?: AbortSignal): Promise<UserInfo> {
     const result = await this.sp.web.ensureUser(loginName)
-    // @ts-ignore
-    return result.data
+    // PnPjs ISiteUserInfo is compatible with UserInfo mostly, cast it.
+    return result as unknown as UserInfo
   }
 
-  async getUserGroups(email?: string): Promise<SiteGroup[]> {
+  async getUserGroups(email?: string, _abortSignal?: AbortSignal): Promise<SiteGroup[]> {
     if (email) {
       return await this.sp.web.siteUsers.getByEmail(email).groups()
     }
     return await this.sp.web.currentUser.groups()
   }
 
-  async addUserToGroup(groupName: string, loginName: string): Promise<void> {
+  async addUserToGroup(groupName: string, loginName: string, _abortSignal?: AbortSignal): Promise<void> {
     const user = await this.sp.web.ensureUser(loginName)
     // @ts-ignore
     await this.sp.web.siteGroups
@@ -637,7 +662,8 @@ export class PnPSharePointClient implements ISharePointClient {
 
   async removeUserFromGroup(
     groupName: string,
-    loginName: string
+    loginName: string,
+    _abortSignal?: AbortSignal
   ): Promise<void> {
     // We need User ID to remove from group in some versions, but LoginName usually works if using proper method.
     // PnPjs 'removeByLoginName' exists on users collection
@@ -648,7 +674,8 @@ export class PnPSharePointClient implements ISharePointClient {
 
   async createGroup(
     groupName: string,
-    description?: string
+    description?: string,
+    _abortSignal?: AbortSignal
   ): Promise<SiteGroup> {
     const r = await this.sp.web.siteGroups.add({
       Title: groupName,
@@ -659,7 +686,8 @@ export class PnPSharePointClient implements ISharePointClient {
   }
 
   async getUserEffectivePermissions(
-    email?: string
+    email?: string,
+    _abortSignal?: AbortSignal
   ): Promise<SPBasePermissions> {
     if (email) {
       // Resolve user first to get LoginName
@@ -673,7 +701,7 @@ export class PnPSharePointClient implements ISharePointClient {
   // 7. FIELDS & METADATA
   // --------------------------------------------------------------------------
 
-  async getListFields(listTitle: string, webUrl?: string): Promise<FieldDefinition[]> {
+  async getListFields(listTitle: string, _webUrl?: string, _abortSignal?: AbortSignal): Promise<FieldDefinition[]> {
     // Note: PnP usually scopes to the current web. To support webUrl, we would need to create a new Web(webUrl).
     // For now, we ignore webUrl in PnP implementation or assume it matches current context,
     // as we haven't imported 'Web' factory dynamically.
@@ -693,7 +721,8 @@ export class PnPSharePointClient implements ISharePointClient {
 
   async getFieldChoices(
     listTitle: string,
-    fieldInternalName: string
+    fieldInternalName: string,
+    _abortSignal?: AbortSignal
   ): Promise<string[]> {
     const f: any = await this.sp.web.lists
       .getByTitle(listTitle)
@@ -703,7 +732,8 @@ export class PnPSharePointClient implements ISharePointClient {
 
   async searchTerm(
     termSetId: string,
-    label: string
+    label: string,
+    abortSignal?: AbortSignal
   ): Promise<{ Label: string; TermGuid: string } | null> {
     try {
       const safeLabel = label.replace(/'/g, "''")
@@ -716,7 +746,8 @@ export class PnPSharePointClient implements ISharePointClient {
       const res = await fetch(endpoint, {
         headers: {
             'Accept': 'application/json;odata=verbose'
-        }
+        },
+        signal: abortSignal
       })
 
       if (!res.ok) return null
@@ -740,7 +771,7 @@ export class PnPSharePointClient implements ISharePointClient {
   // 8. VERSION HISTORY
   // --------------------------------------------------------------------------
 
-  async getFileVersions(serverRelativeUrl: string): Promise<FileVersion[]> {
+  async getFileVersions(serverRelativeUrl: string, _abortSignal?: AbortSignal): Promise<FileVersion[]> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     const versions = await this.sp.web
       .getFileByServerRelativePath(fullUrl)
@@ -761,7 +792,7 @@ export class PnPSharePointClient implements ISharePointClient {
     }))
   }
 
-  async getVersionHistoryLink(serverRelativeUrl: string): Promise<string> {
+  async getVersionHistoryLink(serverRelativeUrl: string, _abortSignal?: AbortSignal): Promise<string> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
 
     // Use PnP to get Item and List info
