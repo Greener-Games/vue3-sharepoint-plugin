@@ -74,7 +74,7 @@ export interface SearchResult<T> {
   items: T[]
   totalHits: number
   startRow: number
-  refiners?: RefinerResult[] // Add this
+  refiners?: RefinerResult[]
 }
 
 export interface RefinerValue {
@@ -184,81 +184,92 @@ export interface IBatch {
 }
 
 export interface ISharePointClient {
-  search<T = any>(options: SearchRequestOptions): Promise<SearchResult<T>>
-  executeBatch(builder: (batch: IBatch) => void): Promise<void>
+  search<T = any>(options: SearchRequestOptions, abortSignal?: AbortSignal): Promise<SearchResult<T>>
+  executeBatch(builder: (batch: IBatch) => void, abortSignal?: AbortSignal): Promise<void>
   createListItem<T = any>(
     listTitle: string,
-    payload: Record<string, any>
+    payload: Record<string, any>,
+    abortSignal?: AbortSignal
   ): Promise<T>
   updateListItem(
     listTitle: string,
     id: number,
-    payload: Record<string, any>
+    payload: Record<string, any>,
+    abortSignal?: AbortSignal
   ): Promise<void>
-  deleteListItem(listTitle: string, id: number): Promise<void>
+  deleteListItem(listTitle: string, id: number, abortSignal?: AbortSignal): Promise<void>
   getListItemById<T = any>(
     listTitle: string,
     id: number,
     select?: string[],
-    expand?: string[]
+    expand?: string[],
+    abortSignal?: AbortSignal
   ): Promise<T>
 
   getListItems<T = any>(
     listTitle: string,
-    options?: ListItemQueryOptions
+    options?: ListItemQueryOptions,
+    abortSignal?: AbortSignal
   ): Promise<T[]>
 
   // Attachments
   getItemAttachments(
     listTitle: string,
-    itemId: number
+    itemId: number,
+    abortSignal?: AbortSignal
   ): Promise<AttachmentInfo[]>
   addAttachment(
     listTitle: string,
     itemId: number,
     fileName: string,
-    file: Blob | ArrayBuffer
+    file: Blob | ArrayBuffer,
+    abortSignal?: AbortSignal
   ): Promise<void>
   deleteAttachment(
     listTitle: string,
     itemId: number,
-    fileName: string
+    fileName: string,
+    abortSignal?: AbortSignal
   ): Promise<void>
 
   // Files & Folders
   uploadFile(
     serverRelativeUrl: string,
     fileName: string,
-    file: Blob | ArrayBuffer
+    file: Blob | ArrayBuffer,
+    abortSignal?: AbortSignal
   ): Promise<string>
-  downloadFile(serverRelativeUrl: string): Promise<Blob>
+  downloadFile(serverRelativeUrl: string, abortSignal?: AbortSignal): Promise<Blob>
   updateFileMetadata(
     serverRelativeUrl: string,
-    payload: Record<string, any>
+    payload: Record<string, any>,
+    abortSignal?: AbortSignal
   ): Promise<void>
-  deleteFile(serverRelativeUrl: string): Promise<void>
-  createFolder(serverRelativeUrl: string): Promise<void>
+  deleteFile(serverRelativeUrl: string, abortSignal?: AbortSignal): Promise<void>
+  createFolder(serverRelativeUrl: string, abortSignal?: AbortSignal): Promise<void>
 
   // Webs
-  getWebInfo(): Promise<WebInfo>
-  getSubwebs(): Promise<WebInfo[]>
+  getWebInfo(abortSignal?: AbortSignal): Promise<WebInfo>
+  getSubwebs(abortSignal?: AbortSignal): Promise<WebInfo[]>
 
   // Lists
-  getLists(): Promise<ListInfo[]>
-  getList(listTitle: string): Promise<ListInfo>
+  getLists(abortSignal?: AbortSignal): Promise<ListInfo[]>
+  getList(listTitle: string, abortSignal?: AbortSignal): Promise<ListInfo>
   createList(
     title: string,
     description?: string,
-    template?: number
+    template?: number,
+    abortSignal?: AbortSignal
   ): Promise<ListInfo>
-  deleteList(title: string): Promise<void>
+  deleteList(title: string, abortSignal?: AbortSignal): Promise<void>
 
   // Users & Groups
-  getCurrentUser(): Promise<UserInfo>
-  getListFields(listTitle: string, webUrl?: string): Promise<FieldDefinition[]>
+  getCurrentUser(abortSignal?: AbortSignal): Promise<UserInfo>
+  getListFields(listTitle: string, webUrl?: string, abortSignal?: AbortSignal): Promise<FieldDefinition[]>
   getFieldChoices(
     listTitle: string,
-    fieldInternalName: string
+    fieldInternalName: string,
+    abortSignal?: AbortSignal
   ): Promise<string[]>
 
   /**
@@ -267,41 +278,42 @@ export interface ISharePointClient {
    */
   searchTerm(
     termSetId: string,
-    label: string
+    label: string,
+    abortSignal?: AbortSignal
   ): Promise<{ Label: string; TermGuid: string } | null>
 
   /** Get all users on the site */
-  getSiteUsers(): Promise<UserInfo[]>
+  getSiteUsers(abortSignal?: AbortSignal): Promise<UserInfo[]>
   /** Search for users by name or email */
-  searchUsers(query: string): Promise<UserInfo[]>
-  ensureUser(loginName: string): Promise<UserInfo>
+  searchUsers(query: string, abortSignal?: AbortSignal): Promise<UserInfo[]>
+  ensureUser(loginName: string, abortSignal?: AbortSignal): Promise<UserInfo>
 
   /**
    * Get the SharePoint Groups a user belongs to.
    * If email is omitted, returns groups for the Current User.
    */
-  getUserGroups(email?: string): Promise<SiteGroup[]>
-  addUserToGroup(groupName: string, loginName: string): Promise<void>
-  removeUserFromGroup(groupName: string, loginName: string): Promise<void>
-  createGroup(groupName: string, description?: string): Promise<SiteGroup>
+  getUserGroups(email?: string, abortSignal?: AbortSignal): Promise<SiteGroup[]>
+  addUserToGroup(groupName: string, loginName: string, abortSignal?: AbortSignal): Promise<void>
+  removeUserFromGroup(groupName: string, loginName: string, abortSignal?: AbortSignal): Promise<void>
+  createGroup(groupName: string, description?: string, abortSignal?: AbortSignal): Promise<SiteGroup>
 
   /**
    * Get the effective permission mask for a user.
    * If email is omitted, returns permissions for the Current User.
    */
-  getUserEffectivePermissions(email?: string): Promise<SPBasePermissions>
+  getUserEffectivePermissions(email?: string, abortSignal?: AbortSignal): Promise<SPBasePermissions>
 
   /**
    * Fetch previous versions of a file.
    * Note: This usually returns *past* versions. The current version is the live file.
    */
-  getFileVersions(serverRelativeUrl: string): Promise<FileVersion[]>
+  getFileVersions(serverRelativeUrl: string, abortSignal?: AbortSignal): Promise<FileVersion[]>
 
   /**
    * Generates a link to the native SharePoint Version History page.
    * Requires a server call to resolve List ID and Item ID.
    */
-  getVersionHistoryLink(serverRelativeUrl: string): Promise<string>
+  getVersionHistoryLink(serverRelativeUrl: string, abortSignal?: AbortSignal): Promise<string>
 
   /**
    * Generates a link to the native SharePoint Version History page.

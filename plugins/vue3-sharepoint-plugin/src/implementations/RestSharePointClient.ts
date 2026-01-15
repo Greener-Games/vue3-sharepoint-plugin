@@ -18,7 +18,7 @@ import { getServerRelativePath } from '../utils/urlUtils'
 import { adaptFileMetadata } from '../utils/metadataAdapter'
 import { Logger } from '../utils/debug'
 
-// Internal Type (Fixes your error)
+// Internal Type
 interface InternalBatchItem {
   url: string
   method: string
@@ -98,9 +98,10 @@ export class RestSharePointClient implements ISharePointClient {
       isWrite?: boolean
       skipMetadata?: boolean // If true, doesn't unwrap .d or .d.results
       targetPath?: string // Optional: The file/folder path to determine the correct API root
+      abortSignal?: AbortSignal
     } = {}
   ): Promise<T> {
-    const { method = 'GET', body, isWrite = false, targetPath } = options
+    const { method = 'GET', body, isWrite = false, targetPath, abortSignal } = options
 
     let finalEndpoint = endpoint;
     let contextUrl: string | undefined = undefined;
@@ -144,6 +145,7 @@ export class RestSharePointClient implements ISharePointClient {
     const fetchOptions: RequestInit = {
       method,
       headers,
+      signal: abortSignal
     }
 
     if (body) {
@@ -198,7 +200,7 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   // --- Batching Implementation ---
-  async executeBatch(builder: (batch: IBatch) => void): Promise<void> {
+  async executeBatch(builder: (batch: IBatch) => void, abortSignal?: AbortSignal): Promise<void> {
     const queue: InternalBatchItem[] = []
 
     const proxy: IBatch = {
@@ -234,10 +236,10 @@ export class RestSharePointClient implements ISharePointClient {
     builder(proxy) // Fill Queue
     if (queue.length === 0) return
     this.logger.log(`Executing Batch with ${queue.length} items`)
-    await this.processInternalBatch(queue)
+    await this.processInternalBatch(queue, abortSignal)
   }
 
-  private async processInternalBatch(requests: InternalBatchItem[]) {
+  private async processInternalBatch(requests: InternalBatchItem[], abortSignal?: AbortSignal) {
     const batchGuid = 'batch_' + this.generateUuid()
     const changesetGuid = 'changeset_' + this.generateUuid()
     const digest = await this.getRequestDigest()
@@ -273,12 +275,13 @@ export class RestSharePointClient implements ISharePointClient {
       method: 'POST',
       headers,
       body,
+      signal: abortSignal
     })
     if (!res.ok) throw new Error(`Batch failed: ${await res.text()}`)
   }
 
   // --- Search ---
-  async search<T = any>(opts: SearchRequestOptions): Promise<SearchResult<T>> {
+  async search<T = any>(opts: SearchRequestOptions, abortSignal?: AbortSignal): Promise<SearchResult<T>> {
     const kql = this.buildKql(opts)
     this.logger.log(`Search KQL: ${kql}`)
 
@@ -345,6 +348,7 @@ export class RestSharePointClient implements ISharePointClient {
       body: payload,
       isWrite: true,
       skipMetadata: true,
+      abortSignal
     })
 
     const refinerData = data.d.postquery.PrimaryQueryResult.RefinementResults
@@ -418,7 +422,8 @@ export class RestSharePointClient implements ISharePointClient {
               const qs = params.length > 0 ? `?${params.join('&')}` : ''
 
               const hydrated = await this.request(
-                `/_api/web/lists/getById('${item.ListId}')/items(${item.ListItemId})${qs}`
+                `/_api/web/lists/getById('${item.ListId}')/items(${item.ListItemId})${qs}`,
+                { abortSignal }
               )
               if (hydrated) {
                 Object.assign(item, hydrated)
@@ -434,15 +439,22 @@ export class RestSharePointClient implements ISharePointClient {
     if (opts.mapping) {
       items = items.map((map: any) => {
         const out: any = {}
-        Object.entries(opts.mapping!).forEach(([k, v]) => {
+        const mapping = opts.mapping!
+        Object.entries(mapping).forEach(([k, v]) => {
           // 1. Get Value from Source
-          let val = map
+          let val: any = map
           if (k.includes('.')) {
             const parts = k.split('.')
             for (const p of parts) {
-              val = val ? val[p] : null
+                if (val && typeof val === 'object') {
+                    // @ts-ignore
+                    val = val[p]
+                } else {
+                    val = null
+                }
             }
           } else {
+            // @ts-ignore
             val = map[k]
           }
 
@@ -452,15 +464,20 @@ export class RestSharePointClient implements ISharePointClient {
             let current = out
             for (let i = 0; i < parts.length - 1; i++) {
               const part = parts[i]
+              // @ts-ignore
               if (!current[part]) current[part] = {}
+              // @ts-ignore
               current = current[part]
             }
+            // @ts-ignore
             current[parts[parts.length - 1]] = val
           } else {
             out[v] = val
           }
         })
+        // @ts-ignore
         if (!out.url) out.url = map.Path
+        // @ts-ignore
         if (opts.includeRelativePath) out.relativePath = map.relativePath
         return out
       })
@@ -477,17 +494,17 @@ export class RestSharePointClient implements ISharePointClient {
 
   // --- Cached Metadata Methods ---
 
-  async getCurrentUser() {
+  async getCurrentUser(abortSignal?: AbortSignal) {
     const cacheKey = 'CurrentUser'
     const cached = this.cache.get<any>(cacheKey)
     if (cached) return cached
 
-    const data = await this.request<any>(`/_api/web/currentuser`)
+    const data = await this.request<any>(`/_api/web/currentuser`, { abortSignal })
     this.cache.set(cacheKey, data)
     return data
   }
 
-  async getListFields(list: string, webUrl?: string) {
+  async getListFields(list: string, webUrl?: string, abortSignal?: AbortSignal) {
     const cacheKey = `Fields:${webUrl || 'current'}:${list}`
     const cached = this.cache.get<FieldDefinition[]>(cacheKey)
     if (cached) return cached
@@ -500,7 +517,7 @@ export class RestSharePointClient implements ISharePointClient {
     // request() uses targetPath to determine apiRoot.
     // If webUrl is the API root (e.g. /sites/Other), we pass it as targetPath.
 
-    const requestOptions: any = {};
+    const requestOptions: any = { abortSignal };
     if (webUrl) {
         requestOptions.targetPath = webUrl;
     }
@@ -520,13 +537,14 @@ export class RestSharePointClient implements ISharePointClient {
     return mapped
   }
 
-  async getFieldChoices(list: string, field: string) {
+  async getFieldChoices(list: string, field: string, abortSignal?: AbortSignal) {
     const cacheKey = `Choices:${list}:${field}`
     const cached = this.cache.get<string[]>(cacheKey)
     if (cached) return cached
 
     const data = await this.request<any>(
-      `/_api/web/lists/getbytitle('${list}')/fields/getByInternalNameOrTitle('${field}')`
+      `/_api/web/lists/getbytitle('${list}')/fields/getByInternalNameOrTitle('${field}')`,
+      { abortSignal }
     )
 
     const choices = data.Choices?.results || []
@@ -536,7 +554,8 @@ export class RestSharePointClient implements ISharePointClient {
 
   async searchTerm(
     termSetId: string,
-    label: string
+    label: string,
+    abortSignal?: AbortSignal
   ): Promise<{ Label: string; TermGuid: string } | null> {
     // Uses the modern Taxonomy API (v2.1)
     // $filter=labels/any(l:l/name eq 'Label') or defaults to name matching
@@ -546,7 +565,7 @@ export class RestSharePointClient implements ISharePointClient {
 
       const endpoint = `/_api/v2.1/termStore/termSets/${termSetId}/terms?$filter=labels/any(l:l/name eq '${safeLabel}') or name eq '${safeLabel}'&$select=id,name,labels`
 
-      const response = await this.request<{ value: any[] }>(endpoint)
+      const response = await this.request<{ value: any[] }>(endpoint, { abortSignal })
 
       const terms = response.value
       if (terms && terms.length > 0) {
@@ -646,8 +665,9 @@ export class RestSharePointClient implements ISharePointClient {
         if (!value || (Array.isArray(value) && value.length === 0)) continue
         let mp = key
         if (opts.mapping) {
-          const found = Object.keys(opts.mapping).find(
-            (k) => opts.mapping![k] === key
+          const mapping = opts.mapping
+          const found = Object.keys(mapping).find(
+            (k) => mapping[k] === key
           )
           if (found) mp = found
         }
@@ -659,15 +679,16 @@ export class RestSharePointClient implements ISharePointClient {
     return parts.join(' AND ')
   }
 
-  async createListItem(list: string, payload: any) {
+  async createListItem(list: string, payload: any, abortSignal?: AbortSignal) {
     return await this.request(`/_api/web/lists/getbytitle('${list}')/items`, {
       method: 'POST',
       body: payload,
       isWrite: true,
+      abortSignal
     })
   }
 
-  async updateListItem(list: string, id: number, payload: any) {
+  async updateListItem(list: string, id: number, payload: any, abortSignal?: AbortSignal) {
     await this.request(`/_api/web/lists/getbytitle('${list}')/items(${id})`, {
       method: 'POST',
       body: payload,
@@ -676,10 +697,11 @@ export class RestSharePointClient implements ISharePointClient {
         'IF-MATCH': '*',
       },
       isWrite: true,
+      abortSignal
     })
   }
 
-  async deleteListItem(list: string, id: number) {
+  async deleteListItem(list: string, id: number, abortSignal?: AbortSignal) {
     await this.request(`/_api/web/lists/getbytitle('${list}')/items(${id})`, {
       method: 'POST',
       headers: {
@@ -687,6 +709,7 @@ export class RestSharePointClient implements ISharePointClient {
         'IF-MATCH': '*',
       },
       isWrite: true,
+      abortSignal
     })
   }
 
@@ -694,7 +717,8 @@ export class RestSharePointClient implements ISharePointClient {
     list: string,
     id: number,
     select?: string[],
-    expand?: string[]
+    expand?: string[],
+    abortSignal?: AbortSignal
   ) {
     const params: string[] = []
     if (select && select.length > 0) params.push(`$select=${select.join(',')}`)
@@ -702,13 +726,15 @@ export class RestSharePointClient implements ISharePointClient {
 
     const q = params.length > 0 ? `?${params.join('&')}` : ''
     return await this.request(
-      `/_api/web/lists/getbytitle('${list}')/items(${id})${q}`
+      `/_api/web/lists/getbytitle('${list}')/items(${id})${q}`,
+      { abortSignal }
     )
   }
 
   async getListItems<T = any>(
     listTitle: string,
-    options?: ListItemQueryOptions
+    options?: ListItemQueryOptions,
+    abortSignal?: AbortSignal
   ): Promise<T[]> {
     const params: string[] = []
 
@@ -731,16 +757,19 @@ export class RestSharePointClient implements ISharePointClient {
 
     const q = params.length > 0 ? `?${params.join('&')}` : ''
     return await this.request(
-      `/_api/web/lists/getbytitle('${listTitle}')/items${q}`
+      `/_api/web/lists/getbytitle('${listTitle}')/items${q}`,
+      { abortSignal }
     )
   }
 
   async getItemAttachments(
     list: string,
-    id: number
+    id: number,
+    abortSignal?: AbortSignal
   ): Promise<AttachmentInfo[]> {
     const results = await this.request<any[]>(
-      `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles`
+      `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles`,
+      { abortSignal }
     )
     return results.map((a) => ({
       FileName: a.FileName,
@@ -752,7 +781,8 @@ export class RestSharePointClient implements ISharePointClient {
     list: string,
     id: number,
     fileName: string,
-    file: Blob | ArrayBuffer
+    file: Blob | ArrayBuffer,
+    abortSignal?: AbortSignal
   ): Promise<void> {
     // For binary upload, we need to ensure Content-Type is not application/json
     await this.request(
@@ -767,6 +797,7 @@ export class RestSharePointClient implements ISharePointClient {
           // In request() helper, we merge headers. If we pass a header that conflicts, we need to ensure it wins.
           'Content-Type': 'application/octet-stream',
         },
+        abortSignal
       }
     )
   }
@@ -774,7 +805,8 @@ export class RestSharePointClient implements ISharePointClient {
   async deleteAttachment(
     list: string,
     id: number,
-    fileName: string
+    fileName: string,
+    abortSignal?: AbortSignal
   ): Promise<void> {
     await this.request(
       `/_api/web/lists/getbytitle('${list}')/items(${id})/AttachmentFiles/getByFileName('${fileName}')`,
@@ -785,11 +817,12 @@ export class RestSharePointClient implements ISharePointClient {
           'IF-MATCH': '*',
         },
         isWrite: true,
+        abortSignal
       }
     )
   }
 
-  async uploadFile(url: string, name: string, file: any) {
+  async uploadFile(url: string, name: string, file: any, abortSignal?: AbortSignal) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
 
     const data = await this.request<any>(
@@ -801,34 +834,35 @@ export class RestSharePointClient implements ISharePointClient {
           'Content-Type': 'application/octet-stream',
         },
         isWrite: true,
-        targetPath: fullUrl // Triggers central getApiRoot
+        targetPath: fullUrl, // Triggers central getApiRoot
+        abortSignal
       }
     )
     return data.ServerRelativeUrl
   }
 
-  async downloadFile(url: string) {
+  async downloadFile(url: string, abortSignal?: AbortSignal) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
     const apiRoot = this.getApiRoot(fullUrl)
 
     const headers = await this.getHeaders(false)
     const res = await fetch(
       `${apiRoot}/_api/web/getfilebyserverrelativeurl('${fullUrl}')/$value`,
-      { headers }
+      { headers, signal: abortSignal }
     )
     return await res.blob()
   }
 
-  async updateFileMetadata(url: string, payload: any) {
+  async updateFileMetadata(url: string, payload: any, abortSignal?: AbortSignal) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
 
     // 1. Get List Item details
     const meta = await this.request<any>(
       `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/ListItemAllFields?$expand=ParentList`,
-      { targetPath: fullUrl } // Triggers central getApiRoot
+      { targetPath: fullUrl, abortSignal } // Triggers central getApiRoot
     )
 
-    if (!meta || !meta.ParentList) {
+    if (!meta || !meta['ParentList']) {
       throw new Error(`Could not determine List for file: ${url}`)
     }
 
@@ -853,7 +887,8 @@ export class RestSharePointClient implements ISharePointClient {
           bNewDocumentUpdate: false
         },
         isWrite: true,
-        targetPath: fullUrl // Use file path to determine site again
+        targetPath: fullUrl, // Use file path to determine site again
+        abortSignal
       }
     )
 
@@ -883,7 +918,7 @@ export class RestSharePointClient implements ISharePointClient {
     }
   }
 
-  async deleteFile(url: string) {
+  async deleteFile(url: string, abortSignal?: AbortSignal) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
     await this.request(`/_api/web/getfilebyserverrelativeurl('${fullUrl}')`, {
       method: 'POST',
@@ -892,11 +927,12 @@ export class RestSharePointClient implements ISharePointClient {
         'IF-MATCH': '*',
       },
       isWrite: true,
-      targetPath: fullUrl
+      targetPath: fullUrl,
+      abortSignal
     })
   }
 
-  async createFolder(url: string) {
+  async createFolder(url: string, abortSignal?: AbortSignal) {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
     await this.request(`/_api/web/folders`, {
       method: 'POST',
@@ -905,13 +941,14 @@ export class RestSharePointClient implements ISharePointClient {
         ServerRelativeUrl: fullUrl,
       },
       isWrite: true,
-      targetPath: fullUrl
+      targetPath: fullUrl,
+      abortSignal
     })
   }
 
   // --- Webs & Lists ---
-  async getWebInfo(): Promise<WebInfo> {
-    const w = await this.request<any>(`/_api/web`)
+  async getWebInfo(abortSignal?: AbortSignal): Promise<WebInfo> {
+    const w = await this.request<any>(`/_api/web`, { abortSignal })
     return {
       Id: w.Id,
       Title: w.Title,
@@ -920,8 +957,8 @@ export class RestSharePointClient implements ISharePointClient {
     }
   }
 
-  async getSubwebs(): Promise<WebInfo[]> {
-    const webs = await this.request<any[]>(`/_api/web/webs`)
+  async getSubwebs(abortSignal?: AbortSignal): Promise<WebInfo[]> {
+    const webs = await this.request<any[]>(`/_api/web/webs`, { abortSignal })
     return webs.map((w) => ({
       Id: w.Id,
       Title: w.Title,
@@ -930,8 +967,8 @@ export class RestSharePointClient implements ISharePointClient {
     }))
   }
 
-  async getLists(): Promise<ListInfo[]> {
-    const lists = await this.request<any[]>(`/_api/web/lists`)
+  async getLists(abortSignal?: AbortSignal): Promise<ListInfo[]> {
+    const lists = await this.request<any[]>(`/_api/web/lists`, { abortSignal })
     return lists.map((l) => ({
       Id: l.Id,
       Title: l.Title,
@@ -942,9 +979,10 @@ export class RestSharePointClient implements ISharePointClient {
     }))
   }
 
-  async getList(listTitle: string): Promise<ListInfo> {
+  async getList(listTitle: string, abortSignal?: AbortSignal): Promise<ListInfo> {
     const l = await this.request<any>(
-      `/_api/web/lists/getbytitle('${listTitle}')`
+      `/_api/web/lists/getbytitle('${listTitle}')`,
+      { abortSignal }
     )
     return {
       Id: l.Id,
@@ -959,7 +997,8 @@ export class RestSharePointClient implements ISharePointClient {
   async createList(
     title: string,
     description?: string,
-    template = 100
+    template = 100,
+    abortSignal?: AbortSignal
   ): Promise<ListInfo> {
     const l = await this.request<any>(`/_api/web/lists`, {
       method: 'POST',
@@ -970,6 +1009,7 @@ export class RestSharePointClient implements ISharePointClient {
         Description: description,
         BaseTemplate: template,
       },
+      abortSignal
     })
     return {
       Id: l.Id,
@@ -981,7 +1021,7 @@ export class RestSharePointClient implements ISharePointClient {
     }
   }
 
-  async deleteList(title: string): Promise<void> {
+  async deleteList(title: string, abortSignal?: AbortSignal): Promise<void> {
     await this.request(`/_api/web/lists/getbytitle('${title}')`, {
       method: 'POST',
       headers: {
@@ -989,6 +1029,7 @@ export class RestSharePointClient implements ISharePointClient {
         'IF-MATCH': '*',
       },
       isWrite: true,
+      abortSignal
     })
   }
 
@@ -1101,13 +1142,14 @@ export class RestSharePointClient implements ISharePointClient {
     })
   }
 
-  async getSiteUsers(): Promise<UserInfo[]> {
+  async getSiteUsers(abortSignal?: AbortSignal): Promise<UserInfo[]> {
     return await this.request<UserInfo[]>(
-      `/_api/web/siteusers?$filter=PrincipalType eq 1`
+      `/_api/web/siteusers?$filter=PrincipalType eq 1`,
+      { abortSignal }
     )
   }
 
-  async searchUsers(query: string): Promise<UserInfo[]> {
+  async searchUsers(query: string, abortSignal?: AbortSignal): Promise<UserInfo[]> {
     const pickerEndpoint = `/_api/SP.UI.ApplicationPages.ClientPeoplePickerWebServiceInterface.clientPeoplePickerSearchUser`;
 
     const payload = {
@@ -1135,7 +1177,8 @@ export class RestSharePointClient implements ISharePointClient {
         method: 'POST',
         body: payload,
         isWrite: true,
-        skipMetadata: true
+        skipMetadata: true,
+        abortSignal
       });
 
       const pickerResults = JSON.parse(response.d.ClientPeoplePickerSearchUser);
@@ -1174,7 +1217,7 @@ export class RestSharePointClient implements ISharePointClient {
         // Fetch top 20 candidates to ensure we capture the right person even with common names
         const siteUsersUrl = `/_api/web/siteusers?$filter=${filterString}&$top=20`;
 
-        const siteUsers = await this.request<any[]>(siteUsersUrl);
+        const siteUsers = await this.request<any[]>(siteUsersUrl, { abortSignal });
 
         // 4. Client-Side Refinement (Case Insensitive + Order Independent)
         // Now we strictly check that the user matches ALL terms (e.g., must have "Tom" AND "Greener")
@@ -1216,16 +1259,17 @@ export class RestSharePointClient implements ISharePointClient {
     return finalResults;
   }
 
-  async ensureUser(loginName: string): Promise<UserInfo> {
+  async ensureUser(loginName: string, abortSignal?: AbortSignal): Promise<UserInfo> {
     const data = await this.request<any>(`/_api/web/ensureUser`, {
       method: 'POST',
       isWrite: true,
       body: { logonName: loginName },
+      abortSignal
     })
     return data
   }
 
-  async getUserGroups(email?: string): Promise<SiteGroup[]> {
+  async getUserGroups(email?: string, abortSignal?: AbortSignal): Promise<SiteGroup[]> {
     let endpoint = ''
 
     if (email) {
@@ -1239,21 +1283,23 @@ export class RestSharePointClient implements ISharePointClient {
       endpoint = `/_api/web/currentuser/groups`
     }
 
-    return await this.request<SiteGroup[]>(endpoint)
+    return await this.request<SiteGroup[]>(endpoint, { abortSignal })
   }
 
-  async addUserToGroup(groupName: string, loginName: string): Promise<void> {
+  async addUserToGroup(groupName: string, loginName: string, abortSignal?: AbortSignal): Promise<void> {
     const user = await this.ensureUser(loginName)
     await this.request(`/_api/web/sitegroups/getByName('${groupName}')/users`, {
       method: 'POST',
       isWrite: true,
       body: { LoginName: user.LoginName },
+      abortSignal
     })
   }
 
   async removeUserFromGroup(
     groupName: string,
-    loginName: string
+    loginName: string,
+    abortSignal?: AbortSignal
   ): Promise<void> {
     await this.request(
       `/_api/web/sitegroups/getByName('${groupName}')/users/removeByLoginName(@v)?@v='${encodeURIComponent(
@@ -1262,13 +1308,15 @@ export class RestSharePointClient implements ISharePointClient {
       {
         method: 'POST',
         isWrite: true,
+        abortSignal
       }
     )
   }
 
   async createGroup(
     groupName: string,
-    description?: string
+    description?: string,
+    abortSignal?: AbortSignal
   ): Promise<SiteGroup> {
     return await this.request<SiteGroup>(`/_api/web/sitegroups`, {
       method: 'POST',
@@ -1278,11 +1326,13 @@ export class RestSharePointClient implements ISharePointClient {
         Title: groupName,
         Description: description,
       },
+      abortSignal
     })
   }
 
   async getUserEffectivePermissions(
-    email?: string
+    email?: string,
+    abortSignal?: AbortSignal
   ): Promise<SPBasePermissions> {
     let endpoint = ''
 
@@ -1295,7 +1345,7 @@ export class RestSharePointClient implements ISharePointClient {
       endpoint = `/_api/web/effectiveBasePermissions`
     }
 
-    return await this.request<SPBasePermissions>(endpoint)
+    return await this.request<SPBasePermissions>(endpoint, { abortSignal })
   }
 
   // Helper to resolve Email -> LoginName
@@ -1310,12 +1360,12 @@ export class RestSharePointClient implements ISharePointClient {
     return user
   }
 
-  async getFileVersions(url: string): Promise<FileVersion[]> {
+  async getFileVersions(url: string, abortSignal?: AbortSignal): Promise<FileVersion[]> {
     const fullUrl = getServerRelativePath(url, this.baseUrl)
     // We expand CreatedBy to get the user name
     const endpoint = `/_api/web/getfilebyserverrelativeurl('${fullUrl}')/versions?$expand=CreatedBy`
 
-    const results = await this.request<any[]>(endpoint)
+    const results = await this.request<any[]>(endpoint, { abortSignal })
 
     return results.map((v: any) => ({
       VersionLabel: v.VersionLabel,
@@ -1332,7 +1382,7 @@ export class RestSharePointClient implements ISharePointClient {
     }))
   }
 
-  async getVersionHistoryLink(serverRelativeUrl: string): Promise<string> {
+  async getVersionHistoryLink(serverRelativeUrl: string, abortSignal?: AbortSignal): Promise<string> {
     // 1. Escape single quotes for the OData query (e.g. "O'Neil.docx" -> "O''Neil.docx")
     // We assume serverRelativeUrl is decoded or we need to handle it.
     // The user provided logic: const safeUrl = fullUrl.replace(/'/g, "''")
@@ -1346,6 +1396,7 @@ export class RestSharePointClient implements ISharePointClient {
       {
         method: 'GET',
         targetPath: fullUrl, // vital for calculating the correct apiRoot
+        abortSignal
       }
     )
 
