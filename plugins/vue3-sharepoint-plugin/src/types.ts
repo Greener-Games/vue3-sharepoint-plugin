@@ -21,6 +21,7 @@ export interface ListItemQueryOptions {
   top?: number
   orderBy?: string
   ascending?: boolean
+  getAll?: boolean
 }
 
 export type FilterValue =

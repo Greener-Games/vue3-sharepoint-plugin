@@ -53,7 +53,7 @@ class InternalCache {
   }
 }
 
-export class SimpleRestClient implements ISharePointClient {
+export class AnonymousClient implements ISharePointClient {
   private baseUrl: string
   private cache: InternalCache
   private logger: Logger
@@ -481,10 +481,37 @@ export class SimpleRestClient implements ISharePointClient {
     }
 
     const q = params.length > 0 ? `?${params.join('&')}` : ''
-    return await this.request(
-      `/_api/web/lists/getbytitle('${listTitle}')/items${q}`,
-      { abortSignal }
-    )
+    const endpoint = `/_api/web/lists/getbytitle('${listTitle}')/items${q}`
+
+    if (options?.getAll) {
+      let allItems: T[] = []
+      let nextUrl: string | undefined = endpoint
+
+      while (nextUrl) {
+        const response: any = await this.request<any>(nextUrl, {
+          skipMetadata: true,
+          abortSignal
+        })
+
+        if (response && response.d) {
+          const results = response.d.results || response.d
+          if (Array.isArray(results)) {
+            allItems = allItems.concat(results)
+          } else {
+            allItems.push(results)
+          }
+          nextUrl = response.d.__next
+        } else if (response && response.value) {
+          allItems = allItems.concat(response.value)
+          nextUrl = response['@odata.nextLink'] || response['odata.nextLink']
+        } else {
+          nextUrl = undefined
+        }
+      }
+      return allItems
+    }
+
+    return await this.request(endpoint, { abortSignal })
   }
 
   async getItemAttachments(

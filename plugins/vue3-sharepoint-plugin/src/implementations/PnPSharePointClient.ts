@@ -255,7 +255,7 @@ export class PnPSharePointClient implements ISharePointClient {
                     // @ts-ignore
                     val = val[p]
                 } else {
-                    val = null
+                    val = null as any
                 }
               }
             } else {
@@ -393,6 +393,32 @@ export class PnPSharePointClient implements ISharePointClient {
     }
     if (options?.orderBy) {
       q = q.orderBy(options.orderBy, options.ascending ?? true)
+    }
+
+    if (options?.getAll) {
+      let results: T[] = []
+      // Use async iterator for paging if supported
+      if (Symbol.asyncIterator in q) {
+        for await (const page of q as any) {
+            results = results.concat(page)
+        }
+        return results
+      } else {
+        // Fallback for missing asyncIterator
+        // Actually, @pnp/sp doesn't always expose asyncIterator on q directly, but let's implement getPaged() fallback
+        let paged: any;
+        try {
+            paged = await (q as any).getPaged()
+            results = results.concat(paged.results)
+            while (paged.hasNext) {
+                paged = await paged.getNext()
+                results = results.concat(paged.results)
+            }
+            return results
+        } catch {
+            return (await q()) as T[]
+        }
+      }
     }
 
     return (await q()) as T[]

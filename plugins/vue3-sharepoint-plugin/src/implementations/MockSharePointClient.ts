@@ -603,7 +603,7 @@ export class MockSharePointClient implements ISharePointClient {
     }
 
     // 3. Top
-    if (options?.top) {
+    if (options?.top && !options.getAll) {
       result = result.slice(0, options.top)
     }
 
