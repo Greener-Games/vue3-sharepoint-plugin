@@ -401,6 +401,9 @@ export class PnPSharePointClient implements ISharePointClient {
       if (Symbol.asyncIterator in q) {
         for await (const page of q as any) {
             results = results.concat(page)
+            if (options?.onProgress) {
+              options.onProgress(page)
+            }
         }
         return results
       } else {
@@ -410,13 +413,23 @@ export class PnPSharePointClient implements ISharePointClient {
         try {
             paged = await (q as any).getPaged()
             results = results.concat(paged.results)
+            if (options?.onProgress) {
+              options.onProgress(paged.results)
+            }
             while (paged.hasNext) {
                 paged = await paged.getNext()
                 results = results.concat(paged.results)
+                if (options?.onProgress) {
+                  options.onProgress(paged.results)
+                }
             }
             return results
         } catch {
-            return (await q()) as T[]
+            const fallbackResults = (await q()) as T[]
+            if (options?.onProgress) {
+              options.onProgress(fallbackResults)
+            }
+            return fallbackResults
         }
       }
     }

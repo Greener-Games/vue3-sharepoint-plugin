@@ -497,12 +497,21 @@ export class AnonymousClient implements ISharePointClient {
           const results = response.d.results || response.d
           if (Array.isArray(results)) {
             allItems = allItems.concat(results)
+            if (options?.onProgress) {
+              options.onProgress(results)
+            }
           } else {
             allItems.push(results)
+            if (options?.onProgress) {
+              options.onProgress([results])
+            }
           }
           nextUrl = response.d.__next
         } else if (response && response.value) {
           allItems = allItems.concat(response.value)
+          if (options?.onProgress) {
+            options.onProgress(response.value)
+          }
           nextUrl = response['@odata.nextLink'] || response['odata.nextLink']
         } else {
           nextUrl = undefined

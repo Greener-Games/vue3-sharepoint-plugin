@@ -22,6 +22,7 @@ export interface ListItemQueryOptions {
   orderBy?: string
   ascending?: boolean
   getAll?: boolean
+  onProgress?: (items: any[]) => void
 }
 
 export type FilterValue =

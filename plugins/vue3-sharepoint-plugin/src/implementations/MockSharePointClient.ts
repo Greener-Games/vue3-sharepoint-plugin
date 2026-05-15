@@ -607,6 +607,10 @@ export class MockSharePointClient implements ISharePointClient {
       result = result.slice(0, options.top)
     }
 
+    if (options?.getAll && options?.onProgress) {
+      options.onProgress(result)
+    }
+
     return result as T[]
   }
   async updateFileMetadata(url: string, payload: any, _abortSignal?: AbortSignal) {
