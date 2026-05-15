@@ -1,5 +1,5 @@
 {
-  "name": "vue3-sharepoint-plugin",
+  "name": "@greener-games/vue-sharepoint-plugin",
   "version": "1.0.0",
   "type": "module",
   "files": [
@@ -16,7 +16,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build"
+    "build": "vue-tsc --noEmit && vite build",
+    "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
     "vue": "^3.0.0"
