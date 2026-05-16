@@ -77,6 +77,23 @@ export class PnPSharePointClient implements ISharePointClient {
     this.logger.log('PnP: Client Initialized')
   }
 
+  public getBaseUrl(): string {
+    return this.baseUrl
+  }
+
+  public async request<T = any>(endpoint: string, options: any = {}): Promise<T> {
+    const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.indexOf("application/json") !== -1) {
+      return response.json();
+    }
+    return response.text() as any;
+  }
+
   // --------------------------------------------------------------------------
   // 1. SEARCH (Native Fetch + Manual Cache)
   // --------------------------------------------------------------------------

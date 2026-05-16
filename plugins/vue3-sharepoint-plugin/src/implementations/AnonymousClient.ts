@@ -78,7 +78,11 @@ export class AnonymousClient implements ISharePointClient {
   }
 
   // --- Centralized Request Handler ---
-  private async request<T = any>(
+  public getBaseUrl(): string {
+    return this.baseUrl
+  }
+
+  public async request<T = any>(
     endpoint: string,
     options: {
       method?: string

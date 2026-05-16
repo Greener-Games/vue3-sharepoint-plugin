@@ -186,6 +186,8 @@ export interface IBatch {
 }
 
 export interface ISharePointClient {
+  getBaseUrl(): string
+  request<T = any>(endpoint: string, options?: any): Promise<T>
   search<T = any>(options: SearchRequestOptions, abortSignal?: AbortSignal): Promise<SearchResult<T>>
   executeBatch(builder: (batch: IBatch) => void, abortSignal?: AbortSignal): Promise<void>
   createListItem<T = any>(
