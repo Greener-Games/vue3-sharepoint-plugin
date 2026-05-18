@@ -1,0 +1,38 @@
+name: Publish to NPM
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync version from tag
+        run: |
+          # Use the tag name directly as the version
+          VERSION=${GITHUB_REF_NAME}
+          echo "Setting package.json version to $VERSION"
+          # Update the plugin's package.json version
+          npm version $VERSION --workspace=@greener-games/vue3-sharepoint-plugin --no-git-tag-version --allow-same-version
+
+      - name: Build plugin
+        run: npm run build:plugin
+
+      - name: Publish plugin
+        run: npm publish --workspace=@greener-games/vue3-sharepoint-plugin --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -109,6 +109,15 @@ export class MockSharePointClient implements ISharePointClient {
     this.logger = new Logger(data.debug)
   }
 
+  public getBaseUrl(): string {
+    return this.data.webInfo ? this.data.webInfo.Url : '/sites/mock'
+  }
+
+  public async request<T = any>(_endpoint: string, _options?: any): Promise<T> {
+    await this.wait()
+    return null as any
+  }
+
   private async wait() {
     return new Promise((resolve) => setTimeout(resolve, this.data.delay))
   }
@@ -605,6 +614,10 @@ export class MockSharePointClient implements ISharePointClient {
     // 3. Top
     if (options?.top && !options.getAll) {
       result = result.slice(0, options.top)
+    }
+
+    if (options?.getAll && options?.onProgress) {
+      options.onProgress(result)
     }
 
     return result as T[]

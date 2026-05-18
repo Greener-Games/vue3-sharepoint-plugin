@@ -80,6 +80,10 @@ export function useSharePoint() {
     client, // Exposed for raw access if needed
     createSearch: () => useSearch(client),
 
+    // Base Methods
+    getBaseUrl: client.getBaseUrl.bind(client),
+    request: client.request.bind(client),
+
     // Globals
     currentUser,
     loadUser,

@@ -1,7 +1,7 @@
 import { createApp } from 'vue'
 import './style.css'
 import App from './App.vue'
-import {createMockData, MockSharePointClient,  RestSharePointClient, SharePointPlugin} from "../plugins/vue3-sharepoint-plugin/src";
+import { createMockData, MockSharePointClient, RestSharePointClient, SharePointPlugin } from "@greener-games/vue3-sharepoint-plugin";
 
 export const app = createApp(App)
 

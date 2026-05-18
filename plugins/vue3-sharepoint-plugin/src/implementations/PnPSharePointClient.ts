@@ -77,6 +77,23 @@ export class PnPSharePointClient implements ISharePointClient {
     this.logger.log('PnP: Client Initialized')
   }
 
+  public getBaseUrl(): string {
+    return this.baseUrl
+  }
+
+  public async request<T = any>(endpoint: string, options: any = {}): Promise<T> {
+    const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+    const response = await fetch(url, options)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.indexOf("application/json") !== -1) {
+      return response.json();
+    }
+    return response.text() as any;
+  }
+
   // --------------------------------------------------------------------------
   // 1. SEARCH (Native Fetch + Manual Cache)
   // --------------------------------------------------------------------------
@@ -401,6 +418,9 @@ export class PnPSharePointClient implements ISharePointClient {
       if (Symbol.asyncIterator in q) {
         for await (const page of q as any) {
             results = results.concat(page)
+            if (options?.onProgress) {
+              options.onProgress(page)
+            }
         }
         return results
       } else {
@@ -410,13 +430,23 @@ export class PnPSharePointClient implements ISharePointClient {
         try {
             paged = await (q as any).getPaged()
             results = results.concat(paged.results)
+            if (options?.onProgress) {
+              options.onProgress(paged.results)
+            }
             while (paged.hasNext) {
                 paged = await paged.getNext()
                 results = results.concat(paged.results)
+                if (options?.onProgress) {
+                  options.onProgress(paged.results)
+                }
             }
             return results
         } catch {
-            return (await q()) as T[]
+            const fallbackResults = (await q()) as T[]
+            if (options?.onProgress) {
+              options.onProgress(fallbackResults)
+            }
+            return fallbackResults
         }
       }
     }
