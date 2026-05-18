@@ -1,7 +1,26 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
+  "extends": "@vue/tsconfig/tsconfig.json",
+  "include": [
+    "env.d.ts",
+    "src/**/*",
+    "src/**/*.vue",
+    "plugins/**/*",
+    "plugins/**/*.vue",
+    "vite.config.ts",
+    "csp.config.ts"
+  ],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "types": ["vite/client"],
+    "strictNullChecks": false
+  },
+  "exclude": [
+    "node_modules",
+    "dist"
   ]
 }

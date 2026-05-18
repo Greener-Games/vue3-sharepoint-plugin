@@ -146,7 +146,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { useSharePoint } from 'vue3-sharepoint-plugin'
+import { useSharePoint } from '@greener-games/vue3-sharepoint-plugin'
 
 // --- Types ---
 interface FileMeta {

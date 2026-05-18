@@ -103,7 +103,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
-import { useSharePoint, SearchRequestOptions } from 'vue3-sharepoint-plugin'
+import { useSharePoint } from '@greener-games/vue3-sharepoint-plugin'
+import type { SearchRequestOptions } from '@greener-games/vue3-sharepoint-plugin'
 
 // --- Props ---
 const props = defineProps<{
@@ -199,7 +200,7 @@ const performSearch = async () => {
     ],
 
     rowLimit: 20,
-    sortlist: [{ Property: 'Created', Direction: 1 }]
+    sortList: [{ property: 'Created', direction: 'ascending' }]
   }
 
   await execute(options)

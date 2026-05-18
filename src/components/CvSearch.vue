@@ -301,7 +301,7 @@
 <script setup lang="ts">
   import { ref, computed, onMounted, reactive } from 'vue'
   // NEW PLUGIN IMPORT
-  import { useSharePoint } from 'vue3-sharepoint-plugin'
+  import { useSharePoint } from '@greener-games/vue3-sharepoint-plugin'
 
   // --- 1. SETUP PLUGIN ---
   const { createSearch } = useSharePoint()
