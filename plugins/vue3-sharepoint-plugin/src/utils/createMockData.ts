@@ -31,7 +31,7 @@ const ROLES = [
   { title: 'HR Coordinator', ext: 'docx', desc: 'Onboarding checklist.' },
 ]
 
-export const getRandom = <T>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)]
+export const getRandom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
 
 // --- 3. Granular Helper Functions ---
 
@@ -64,27 +64,27 @@ export function createMockDocument(
     allUsers: ExtendedUser[], // We pass the pool of users to pick an owner
     libraryName = 'Shared Documents'
 ): {
-  item: any
+  item: Record<string, unknown>
   file: Blob
   versions: FileVersion[]
   serverRelativeUrl: string
 } {
   // 1. Pick a Random Owner from our defined user pool
-  const ownerUser = getRandom(allUsers)!
+  const ownerUser = getRandom(allUsers)
 
   // 2. Determine Line Manager based on the user's structure
   const managerEmail = ownerUser.ReportsToEmail || 'ceo@local'
 
-  const roleObj = getRandom(ROLES)!
-  const division = getRandom(MOCK_DIVISIONS)!
-  const status = getRandom(MOCK_STATUSES)!
+  const roleObj = getRandom(ROLES)
+  const division = getRandom(MOCK_DIVISIONS)
+  const status = getRandom(MOCK_STATUSES)
 
   const fileName = `${roleObj.title}_${id}.${roleObj.ext}`
   const siteUrl = baseUrl.replace(/\/$/, '')
   const serverRelativeUrl = `${siteUrl}/${libraryName}/${division}/${fileName}`
 
   // 3. Metadata Item
-  const item = {
+  const item: Record<string, unknown> = {
     Id: id,
     UniqueId: `uuid-${id}`,
     Title: `Document - ${division} - ${roleObj.title}`,
@@ -122,7 +122,7 @@ export function createMockDocument(
   const versions: FileVersion[] = [
     {
       VersionLabel: '1.0',
-      Created: item.Created,
+      Created: item.Created as string,
       CheckInComment: 'Initial Upload',
       IsCurrentVersion: true,
       Size: 1024 + id,
@@ -179,13 +179,13 @@ export function createMockData(
   const allUsers = [currentUser, teamMember1, teamMember2, peerUser, directorUser]
 
   // Standard Arrays for MockClient
-  const siteUsers = allUsers.map(({ ReportsToEmail, ...u }) => u) // strip extra prop for standard return
+  const siteUsers = allUsers.map(({ ReportsToEmail: _ReportsToEmail, ...u }) => u) // strip extra prop for standard return
   const userGroups: Record<string, SiteGroup[]> = {
     [currentUser.Email]: [createMockGroup(1, 'Site Members')],
   }
 
   // B. Containers
-  const documentsList: any[] = []
+  const documentsList: Record<string, unknown>[] = []
   const filesMap: Record<string, Blob | string> = {}
   const versionsMap: Record<string, FileVersion[]> = {}
 

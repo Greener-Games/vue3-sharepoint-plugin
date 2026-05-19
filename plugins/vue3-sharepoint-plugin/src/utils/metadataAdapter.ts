@@ -13,11 +13,12 @@ export interface FormValue {
  * @param client The SharePoint client instance (Rest or PnP)
  * @param listTitle The title of the list/library containing the item
  * @param payload The metadata to update (e.g. { "MyTaxonomy": { Label: "A", TermGuid: "B" }, "AssignedTo": "user@email.com" })
+ * @param webUrl Optional web URL if different from base URL
  */
 export async function adaptFileMetadata(
   client: ISharePointClient,
   listTitle: string,
-  payload: Record<string, any>,
+  payload: Record<string, unknown>,
   webUrl?: string
 ): Promise<FormValue[]> {
   const fields = await client.getListFields(listTitle, webUrl)
@@ -56,7 +57,7 @@ export async function adaptFileMetadata(
 async function adaptValue(
   client: ISharePointClient,
   field: FieldDefinition,
-  value: any
+  value: unknown
 ): Promise<string> {
   if (value === null || value === undefined) return ''
 
@@ -76,10 +77,10 @@ async function adaptValue(
       if (Array.isArray(value)) {
         return value.join(';')
       }
-      return String(value)
+      return typeof value === 'object' && value !== null ? JSON.stringify(value) : String((value ?? '') as any)
 
     case 'Choice':
-      return String(value)
+      return typeof value === 'object' && value !== null ? JSON.stringify(value) : String((value ?? '') as any)
 
     case 'Boolean':
       // ValidateUpdateListItem expects "TRUE" or "FALSE" (case insensitive but standard is caps)
@@ -88,26 +89,29 @@ async function adaptValue(
     case 'DateTime':
       // ValidateUpdateListItem works well with ISO strings
       if (value instanceof Date) return value.toISOString()
-      return String(value)
+      return typeof value === 'object' && value !== null ? JSON.stringify(value) : String((value ?? '') as any)
 
     case 'Number':
     case 'Currency':
-      return String(value)
+      return typeof value === 'object' && value !== null ? JSON.stringify(value) : String((value ?? '') as any)
 
     case 'URL':
       // URL field value: "Url, Description"
-      if (typeof value === 'object' && value.Url) {
-          return `${value.Url}, ${value.Description || ''}`
+      if (typeof value === 'object' && value !== null) {
+          const urlObj = value as { Url?: string; Description?: string }
+          if (urlObj.Url) {
+              return `${urlObj.Url}, ${urlObj.Description || ''}`
+          }
       }
-      return String(value)
+      return typeof value === 'object' && value !== null ? JSON.stringify(value) : String((value ?? '') as any)
 
     default:
       // Text, Note, etc.
-      return String(value)
+      return typeof value === 'object' && value !== null ? JSON.stringify(value) : String((value ?? '') as any)
   }
 }
 
-async function formatTaxonomy(client: ISharePointClient, field: FieldDefinition, value: any): Promise<string> {
+async function formatTaxonomy(client: ISharePointClient, field: FieldDefinition, value: unknown): Promise<string> {
   // Expected: "Label|Guid;Label|Guid"
   if (Array.isArray(value)) {
     // Use Promise.all to handle multiple async resolutions
@@ -117,11 +121,12 @@ async function formatTaxonomy(client: ISharePointClient, field: FieldDefinition,
   return await formatSingleTaxonomy(client, field, value)
 }
 
-async function formatSingleTaxonomy(client: ISharePointClient, field: FieldDefinition, val: any): Promise<string> {
-  if (typeof val === 'object') {
+async function formatSingleTaxonomy(client: ISharePointClient, field: FieldDefinition, val: unknown): Promise<string> {
+  if (typeof val === 'object' && val !== null) {
+    const termObj = val as { Label?: string; TermGuid?: string }
     // Check for { Label, TermGuid }
-    if (val.Label && val.TermGuid) {
-      return `${val.Label}|${val.TermGuid}`
+    if (termObj.Label && termObj.TermGuid) {
+      return `${termObj.Label}|${termObj.TermGuid}`
     }
     // Fallback
     return JSON.stringify(val)
@@ -149,10 +154,10 @@ async function formatSingleTaxonomy(client: ISharePointClient, field: FieldDefin
     return val
   }
 
-  return String(val)
+  return typeof val === 'object' ? JSON.stringify(val) : String(val)
 }
 
-async function formatUser(client: ISharePointClient, value: any): Promise<string> {
+async function formatUser(client: ISharePointClient, value: unknown): Promise<string> {
   // ValidateUpdateListItem requires a specific format for User fields to be robust.
   // Using a JSON stringified array of objects with "Key" (LoginName) is the standard way.
   // Format: '[{"Key":"i:0#.f|membership|user@domain.com"}]'
@@ -167,10 +172,10 @@ async function formatUser(client: ISharePointClient, value: any): Promise<string
   return JSON.stringify([{ Key: user.LoginName }])
 }
 
-async function resolveUser(client: ISharePointClient, val: any): Promise<{ LoginName: string }> {
+async function resolveUser(client: ISharePointClient, val: unknown): Promise<{ LoginName: string }> {
   // If it's an object with LoginName, use it
-  if (val && typeof val === 'object' && val.LoginName) {
-    return val
+  if (val && typeof val === 'object' && 'LoginName' in val) {
+    return val as { LoginName: string }
   }
 
   // If string, assume Email or LoginName
@@ -184,7 +189,7 @@ async function resolveUser(client: ISharePointClient, val: any): Promise<{ Login
     try {
       const user = await client.ensureUser(val)
       return user
-    } catch (e) {
+    } catch (_e: unknown) {
       console.warn(`[SharePointPlugin] Could not resolve user '${val}'. Using as-is.`)
       return { LoginName: val }
     }

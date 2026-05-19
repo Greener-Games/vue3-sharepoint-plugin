@@ -1,31 +1,30 @@
-
 /**
  * Simple Logger class to handle conditional debug output.
  */
 export class Logger {
-  private enabled: boolean = false
-  private prefix: string = '[SharePoint Plugin]'
+  private enabled = false
+  private prefix = '[SharePoint Plugin]'
 
-  constructor(enabled: boolean = false) {
+  constructor(enabled = false) {
     this.enabled = enabled
   }
 
-  log(message: string, ...data: any[]) {
+  /** Logs a message to the console if enabled */
+  log(message: string, ...data: unknown[]): void {
     if (this.enabled) {
       console.log(`${this.prefix} ${message}`, ...data)
     }
   }
 
-  warn(message: string, ...data: any[]) {
+  /** Logs a warning message to the console if enabled */
+  warn(message: string, ...data: unknown[]): void {
     if (this.enabled) {
       console.warn(`${this.prefix} ${message}`, ...data)
     }
   }
 
-  error(message: string, ...data: any[]) {
-    // Errors usually should always be logged, but for consistency we respect the flag or use console.error directly in catch blocks.
-    // However, if this is strictly for *debug* info, we might gate it.
-    // Usually, real errors should always print. But let's assume this is for tracing.
+  /** Logs an error message to the console */
+  error(message: string, ...data: unknown[]): void {
     console.error(`${this.prefix} ${message}`, ...data)
   }
 }

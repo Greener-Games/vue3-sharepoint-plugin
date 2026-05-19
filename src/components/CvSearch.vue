@@ -19,17 +19,17 @@
             <!-- v-model binds to typing state -->
             <input
               v-model="searchQuery"
-              @keyup.enter="triggerSearch"
               type="text"
               placeholder="Search for Content"
-              class="hero-input" />
+              class="hero-input"
+              @keyup.enter="triggerSearch" />
 
             <!-- Clear Button -->
             <button
               v-if="searchQuery"
-              @click="clearSearchText"
               class="clear-text-btn"
-              title="Clear search">
+              title="Clear search"
+              @click="clearSearchText">
               ✕
             </button>
           </div>
@@ -37,8 +37,8 @@
           <!-- Manual Search Button -->
           <button
             class="search-btn"
-            @click="triggerSearch"
-            :disabled="isSearching">
+            :disabled="isSearching"
+            @click="triggerSearch">
             {{ isSearching ? 'Searching...' : 'Search' }}
           </button>
         </div>
@@ -129,11 +129,11 @@
 
         <!-- PAGINATION (Server Side) -->
         <div v-if="totalHits > 0" class="pagination-footer">
-          <button @click="changePage(currentPage - 1)" :disabled="!hasPrevPage">
+          <button :disabled="!hasPrevPage" @click="changePage(currentPage - 1)">
             Previous
           </button>
           <span>Page {{ currentPage }} of {{ totalPages }}</span>
-          <button @click="changePage(currentPage + 1)" :disabled="!hasNextPage">
+          <button :disabled="!hasNextPage" @click="changePage(currentPage + 1)">
             Next
           </button>
         </div>
@@ -160,9 +160,9 @@
             <span>Refiners</span>
           </div>
           <button
-            @click="clearAllFilters"
+            v-if="hasActiveFilters"
             class="clear-btn"
-            v-if="hasActiveFilters">
+            @click="clearAllFilters">
             Clear all Filters
           </button>
         </div>
@@ -209,13 +209,13 @@
           </div>
 
           <!-- Body -->
-          <div class="filter-body" v-show="sections[filter.key]">
+          <div v-show="sections[filter.key]" class="filter-body">
             <div v-for="opt in filter.options" :key="opt" class="checkbox-row">
               <input
-                type="checkbox"
                 :id="`${filter.key}-${opt}`"
-                :value="opt"
                 v-model="activeFilters[filter.key]"
+                type="checkbox"
+                :value="opt"
                 @change="triggerSearch" />
               <label :for="`${filter.key}-${opt}`">{{ opt }}</label>
             </div>
@@ -276,16 +276,16 @@
               </div>
 
               <!-- Body -->
-              <div class="filter-body" v-show="sections[filter.key]">
+              <div v-show="sections[filter.key]" class="filter-body">
                 <div
                   v-for="opt in filter.options"
                   :key="opt"
                   class="checkbox-row">
                   <input
-                    type="checkbox"
                     :id="`${filter.key}-${opt}`"
-                    :value="opt"
                     v-model="activeFilters[filter.key]"
+                    type="checkbox"
+                    :value="opt"
                     @change="triggerSearch" />
                   <label :for="`${filter.key}-${opt}`">{{ opt }}</label>
                 </div>
@@ -336,7 +336,7 @@
   const isSearching = computed(() => searchCtx.loading.value)
 
   // Results List (Mapped from plugin state)
-  const resultsList = computed(() => searchCtx.results.value?.items || [])
+  const resultsList = computed(() => (searchCtx.results.value?.items || []) as Record<string, unknown>[])
 
   // Total Hits (From server)
   const totalHits = computed(() => searchCtx.totalHits.value)
@@ -438,7 +438,7 @@
     executedQuery.value = searchQuery.value
 
     // 2. Prepare Filters for API
-    const filtersToSend: Record<string, any> = {}
+    const filtersToSend: Record<string, string[]> = {}
     for (const [key, val] of Object.entries(activeFilters)) {
       if (val.length > 0) filtersToSend[key] = [...val]
     }
@@ -465,17 +465,17 @@
 
   const clearSearchText = () => {
     searchQuery.value = ''
-    triggerSearch()
+    void triggerSearch()
   }
 
   const clearAllFilters = () => {
     Object.keys(activeFilters).forEach((k) => (activeFilters[k] = []))
-    triggerSearch()
+    void triggerSearch()
   }
 
   const clearSpecificFilter = (key: string) => {
     activeFilters[key] = []
-    triggerSearch()
+    void triggerSearch()
   }
 
   // Updated Pagination Action
@@ -485,7 +485,7 @@
   }
 
   // Initial Load
-  onMounted(() => triggerSearch())
+  onMounted(() => { void triggerSearch() })
 </script>
 
 <style scoped>
@@ -494,6 +494,7 @@
     --primary-blue: #326cf6;
     --bg-sidebar: #eaf5fa;
   }
+
   .page-container {
     max-width: 1400px;
     margin: 0 auto;
@@ -511,11 +512,13 @@
     padding: 20px 0;
     border-bottom: 1px solid #f0f0f0;
   }
+
   .search-input-group {
     display: flex;
     gap: 10px;
     width: 100%;
   }
+
   .input-wrapper {
     position: relative;
     flex: 1;
@@ -528,9 +531,10 @@
     border-radius: 4px;
     font-size: 18px;
     color: #326cf6;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 4px rgb(0 0 0 / 5%);
     transition: border-color 0.2s;
   }
+
   .hero-input:focus {
     border-color: #326cf6;
     outline: none;
@@ -559,6 +563,7 @@
     padding: 4px;
     border-radius: 50%;
   }
+
   .clear-text-btn:hover {
     background-color: #eee;
     color: #333;
@@ -577,9 +582,11 @@
     transition: background-color 0.2s;
     white-space: nowrap;
   }
+
   .search-btn:hover {
     background-color: #2554c7;
   }
+
   .search-btn:disabled {
     background-color: #a0bbf5;
     cursor: default;
@@ -593,6 +600,7 @@
     align-items: start;
     margin-top: 20px;
   }
+
   .results-column {
     min-height: 600px;
   }
@@ -605,17 +613,20 @@
     border-bottom: 1px solid #eee;
     padding-bottom: 10px;
   }
+
   .result-item {
     display: flex;
     gap: 20px;
     padding: 24px 0;
     border-bottom: 1px solid #e0e0e0;
   }
+
   .doc-icon-wrapper {
     color: #99abb4;
     width: 32px;
     padding-top: 4px;
   }
+
   .doc-title {
     font-size: 18px;
     font-weight: 600;
@@ -633,6 +644,7 @@
     margin-bottom: 12px;
     border-radius: 0 4px 4px 0;
   }
+
   .snippet-label {
     font-size: 11px;
     text-transform: uppercase;
@@ -640,6 +652,7 @@
     margin-bottom: 4px;
     font-weight: 600;
   }
+
   .search-snippet p {
     margin: 0;
     font-size: 14px;
@@ -647,6 +660,7 @@
     font-style: italic;
     line-height: 1.5;
   }
+
   :deep(.highlight) {
     background-color: #fff4ce;
     color: #000;
@@ -663,11 +677,13 @@
     margin-top: 8px;
     font-size: 14px;
   }
+
   .meta-label {
     font-weight: 700;
     color: #000;
     margin-right: 4px;
   }
+
   .full-width {
     width: 100%;
   }
@@ -683,18 +699,21 @@
     max-height: 80vh;
     overflow-y: auto;
   }
+
   .sidebar-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
   }
+
   .header-title {
     display: flex;
     align-items: center;
     gap: 8px;
     font-weight: 600;
   }
+
   .clear-btn {
     background: none;
     border: none;
@@ -712,6 +731,7 @@
     margin-bottom: 12px;
     overflow: hidden;
   }
+
   .filter-card-header {
     padding: 12px;
     display: flex;
@@ -722,19 +742,23 @@
     user-select: none;
     transition: background 0.2s;
   }
+
   .filter-card-header:hover {
     background: #f9f9f9;
   }
+
   .chevron {
     transition: transform 0.2s;
     font-size: 18px;
     color: #326cf6;
   }
+
   .chevron.open {
     transform: rotate(90deg);
   }
+
   .filter-body {
-    padding: 0 12px 12px 12px;
+    padding: 0 12px 12px;
     border-top: 1px solid #f0f0f0;
   }
 
@@ -745,9 +769,10 @@
     gap: 8px;
     background-color: #f4f7f9;
     padding: 8px 12px;
-    margin: 0 12px 12px 12px;
+    margin: 0 12px 12px;
     border-radius: 4px;
   }
+
   .summary-bin-btn {
     display: flex;
     align-items: center;
@@ -759,19 +784,23 @@
     padding: 2px;
     border-radius: 4px;
   }
+
   .summary-bin-btn:hover {
     background: #e1e8ed;
   }
+
   .summary-text-wrapper {
     flex: 1;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
   }
+
   .summary-text {
     font-size: 13px;
     color: #333;
   }
+
   .summary-badge {
     font-size: 12px;
     font-weight: 700;
@@ -785,12 +814,14 @@
     gap: 8px;
     padding: 6px 0;
   }
+
   .checkbox-row label {
     font-size: 14px;
     color: #333;
     cursor: pointer;
     flex: 1;
   }
+
   .checkbox-row input {
     cursor: pointer;
     accent-color: #326cf6;
@@ -807,9 +838,10 @@
     font-weight: 600;
     font-size: 14px;
     cursor: pointer;
-    margin: 20px 0 12px 0;
+    margin: 20px 0 12px;
     user-select: none;
   }
+
   .advanced-trigger .plus {
     margin-left: auto;
     font-size: 18px;
@@ -824,6 +856,7 @@
     opacity: 1;
     overflow: hidden;
   }
+
   .expand-enter-from,
   .expand-leave-to {
     max-height: 0;
@@ -837,20 +870,23 @@
     gap: 10px;
     justify-content: center;
   }
+
   .pagination-footer button {
     padding: 8px 16px;
     background: white;
     border: 1px solid #ccc;
     cursor: pointer;
   }
+
   .pagination-footer button:disabled {
     opacity: 0.5;
   }
 
-  @media (max-width: 900px) {
+  @media (width <= 900px) {
     .main-layout {
       grid-template-columns: 1fr;
     }
+
     .refiners-sidebar {
       position: static;
       margin-bottom: 40px;
