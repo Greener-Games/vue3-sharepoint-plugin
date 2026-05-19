@@ -818,7 +818,7 @@ export class AnonymousClient implements ISharePointClient {
       }
   }
 
-  async getSiteUsers(signal?: AbortSignal): Promise<UserInfo[]> {
+  async getSiteUsers(_signal?: AbortSignal): Promise<UserInfo[]> {
      // Usually blocked for anonymous
      return await this.notSupported('getSiteUsers');
   }

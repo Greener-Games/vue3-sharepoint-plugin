@@ -2,33 +2,41 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "master", "main", "dev", "development" ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ "master", "main", "dev", "development" ]
 
 jobs:
-  lint-and-build:
+  build-and-test:
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: npm ci
 
-      - name: Build plugins
-        run: npm run build:workspaces
+      - name: Build Packages (Workspaces)
+        run: npm run build --workspaces --if-present
 
-      - name: Lint
+      - name: Lint Code
         run: npm run lint
 
-      - name: Type check
+      - name: Lint Styles
+        run: npm run lint:styles
+
+      - name: Type Check
         run: npm run type-check
 
-      - name: Build Plugin
+      - name: Build Root App
         run: npm run build

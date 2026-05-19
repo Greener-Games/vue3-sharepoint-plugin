@@ -169,7 +169,7 @@ export class MockSharePointClient implements ISharePointClient {
     if (opts.scope) {
       const scopes = Array.isArray(opts.scope) ? opts.scope : [opts.scope]
 
-      allItems = allItems.filter((item: any) => {
+      allItems = allItems.filter((item: Record<string, unknown>) => {
         // If item has no path, we can't verify sub-folder, so exclude safely
         if (!item.Path && !item.url) return false
 
@@ -183,7 +183,7 @@ export class MockSharePointClient implements ISharePointClient {
     const qRaw = opts.query || ''
     if (qRaw && qRaw !== '*') {
       const q = qRaw.toLowerCase()
-      allItems = allItems.filter((item: any) => {
+      allItems = allItems.filter((item: Record<string, unknown>) => {
         const titleMatch = (typeof item.Title === 'string' ? item.Title : '').toLowerCase().includes(q)
         // In SP, Filename is often FileLeafRef or derived from Path
         const filenameMatch = String((item.FileLeafRef || item.Name || ''))
@@ -203,7 +203,7 @@ export class MockSharePointClient implements ISharePointClient {
     // --- STEP 3.4: File Types (Inclusion / Exclusion) (Mock) ---
     if (opts.fileTypes?.include?.length) {
       const includes = opts.fileTypes.include.map((e) => e.toLowerCase())
-      allItems = allItems.filter((item: any) => {
+      allItems = allItems.filter((item: Record<string, unknown>) => {
         const path = String(item.Path || item.url || '').toLowerCase()
         return includes.some((ext) => path.endsWith(`.${ext}`))
       })
@@ -211,7 +211,7 @@ export class MockSharePointClient implements ISharePointClient {
 
     if (opts.fileTypes?.exclude?.length) {
       const excludes = opts.fileTypes.exclude.map((e) => e.toLowerCase())
-      allItems = allItems.filter((item: any) => {
+      allItems = allItems.filter((item: Record<string, unknown>) => {
         const path = String(item.Path || item.url || '').toLowerCase()
         return !excludes.some((ext) => path.endsWith(`.${ext}`))
       })
@@ -249,7 +249,7 @@ export class MockSharePointClient implements ISharePointClient {
           const itemVal = item[dataKey]
           if (itemVal === undefined || itemVal === null) return false
 
-          const normalizedItemVal = typeof itemVal === 'object' ? JSON.stringify(itemVal).toLowerCase() : String(itemVal).toLowerCase()
+          const normalizedItemVal = typeof itemVal === 'object' ? JSON.stringify(itemVal).toLowerCase() : String(itemVal as string | number | boolean).toLowerCase()
 
           if (Array.isArray(value)) {
             return value.some((v) =>
@@ -352,12 +352,12 @@ export class MockSharePointClient implements ISharePointClient {
 
   async getCurrentUser(_abortSignal?: AbortSignal): Promise<UserInfo> {
     await this.wait()
-    return this.data.currentUser
+    return this.data.currentUser as UserInfo
   }
 
   async getSiteUsers(_abortSignal?: AbortSignal): Promise<UserInfo[]> {
     await this.wait()
-    return this.data.siteUsers || [this.data.currentUser]
+    return this.data.siteUsers || [this.data.currentUser as UserInfo]
   }
 
   async searchUsers(query: string, _abortSignal?: AbortSignal): Promise<UserInfo[]> {
@@ -365,7 +365,7 @@ export class MockSharePointClient implements ISharePointClient {
     if (!query) return []
 
     const q = query.toLowerCase()
-    const allUsers = this.data.siteUsers || [this.data.currentUser]
+    const allUsers = this.data.siteUsers || [this.data.currentUser as UserInfo]
 
     return allUsers.filter(
       (u) =>
@@ -398,7 +398,7 @@ export class MockSharePointClient implements ISharePointClient {
 
   async getUserGroups(email?: string, _abortSignal?: AbortSignal): Promise<SiteGroup[]> {
     await this.wait()
-    const targetEmail = email || this.data.currentUser.Email
+    const targetEmail = email || (this.data.currentUser as UserInfo).Email
     return this.data.userGroups?.[targetEmail] || []
   }
 
@@ -471,7 +471,7 @@ export class MockSharePointClient implements ISharePointClient {
     _abortSignal?: AbortSignal
   ): Promise<SPBasePermissions> {
     await this.wait()
-    const targetEmail = email || this.data.currentUser.Email
+    const targetEmail = email || (this.data.currentUser as UserInfo).Email
     const groups = this.data.userGroups?.[targetEmail] || []
 
     // Logic: If in 'Owners', return Full Control. Else Read.
@@ -663,7 +663,7 @@ export class MockSharePointClient implements ISharePointClient {
   // --- 5. WEBS & LISTS ---
   async getWebInfo(_abortSignal?: AbortSignal): Promise<WebInfo> {
     await this.wait()
-    return this.data.webInfo
+    return this.data.webInfo as WebInfo
   }
 
   async getSubwebs(_abortSignal?: AbortSignal): Promise<WebInfo[]> {
@@ -685,7 +685,7 @@ export class MockSharePointClient implements ISharePointClient {
         Id: `mock-list-${i}`,
         Title: k,
         Description: 'Mock List',
-        ItemCount: this.data.lists[k].length,
+        ItemCount: (this.data.lists?.[k] || []).length,
         Hidden: false,
         ImageUrl: '',
       }))
