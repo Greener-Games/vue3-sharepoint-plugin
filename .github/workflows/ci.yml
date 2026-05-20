@@ -9,6 +9,10 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    # Skip CI on automated release commits to prevent infinite loops.
+    # semantic-release pushes a 'chore(release): x.y.z [skip ci]' commit; this
+    # provides an explicit, readable guard in addition to the [skip ci] convention.
+    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
 
     strategy:
       matrix:

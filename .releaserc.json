@@ -18,6 +18,12 @@
       }
     ],
     [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "npm version ${nextRelease.version} --workspaces --no-git-tag-version --if-present"
+      }
+    ],
+    [
       "@semantic-release/git",
       {
         "assets": [

@@ -19,8 +19,7 @@
     "lint:styles:fix": "stylelint \"**/*.{css,vue}\" --fix",
     "format": "prettier --write .",
     "type-check": "vue-tsc --noEmit",
-    "release": "semantic-release",
-    "version": "node -e \"const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json')); if (pkg.workspaces) { const { execSync } = require('child_process'); execSync('npm version ' + pkg.version + ' --workspaces --no-git-tag-version', { stdio: 'inherit' }); }\""
+    "release": "semantic-release"
   },
   "dependencies": {
     "pinia": "^3.0.3",
@@ -31,6 +30,7 @@
     "@eslint/js": "^9.21.0",
     "@greener-games/vue3-sharepoint-plugin": "*",
     "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/npm": "^12.0.1",
     "@tailwindcss/forms": "^0.5.11",
