@@ -1,15 +1,25 @@
 name: Publish Plugins
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  workflow_call:
+    inputs:
+      version:
+        description: 'The version being published'
+        required: true
+        type: string
+    secrets:
+      NPM_TOKEN:
+        required: true
 
 jobs:
   publish-npm:
     runs-on: ubuntu-latest
     steps:
+      # We must checkout the exact tag that was just created by semantic-release
       - uses: actions/checkout@v4
+        with:
+          ref: v${{ inputs.version }}
+          
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -24,7 +34,7 @@ jobs:
         run: npm run build --workspaces --if-present
 
       - name: Publish all public workspaces if not a pre-release
-        if: "!contains(github.ref, '-dev')"
+        if: "!contains(inputs.version, '-dev')"
         run: npm publish --workspaces --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -12,13 +12,14 @@ jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    # Prevent this workflow from running on forks
     if: github.repository == 'Greener-Games/vue3-sharepoint-plugin'
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # This is required to analyze the commit history
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -31,6 +32,17 @@ jobs:
         run: npm ci
 
       - name: Run semantic-release
+        id: semantic
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
+
+  trigger-publish:
+    name: Trigger Publish
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
+    uses: ./.github/workflows/publish.yml
+    with:
+      version: ${{ needs.release.outputs.new_release_version }}
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
