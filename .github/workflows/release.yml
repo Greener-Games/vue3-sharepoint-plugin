@@ -13,7 +13,7 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     # Prevent this workflow from running on forks
-    if: github.repository == 'your-repo-owner/your-repo-name' # TODO: Replace with your repo details
+    if: github.repository == 'Greener-Games/vue3-sharepoint-plugin'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
