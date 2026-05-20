@@ -28,8 +28,11 @@
     "vue-router": "^4.6.3"
   },
   "devDependencies": {
-    "@greener-games/vue3-sharepoint-plugin": "*",
     "@eslint/js": "^9.21.0",
+    "@greener-games/vue3-sharepoint-plugin": "*",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/npm": "^12.0.1",
     "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.3.0",
@@ -43,6 +46,7 @@
     "postcss-html": "^1.8.1",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
+    "semantic-release": "^24.2.0",
     "stylelint": "^17.11.1",
     "stylelint-config-recommended-vue": "^1.6.1",
     "stylelint-config-standard": "^40.0.0",
