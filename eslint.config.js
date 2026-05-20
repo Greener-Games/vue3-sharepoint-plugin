@@ -8,7 +8,7 @@ import prettier from 'eslint-config-prettier'
 
 export default [
   // Ignore build outputs and config file
-  { ignores: ['dist/**', 'node_modules/**', '.vite/**', 'coverage/**', 'eslint.config.js', '.templateScripts/**'] },
+  { ignores: ['dist/**', 'node_modules/**', '.vite/**', 'coverage/**', 'eslint.config.js', '.templateScripts/**', '**/dist/**'] },
 
   // Base JS rules
   js.configs.recommended,

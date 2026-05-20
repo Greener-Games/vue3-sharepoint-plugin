@@ -22,7 +22,7 @@ export interface ListItemQueryOptions {
   orderBy?: string
   ascending?: boolean
   getAll?: boolean
-  onProgress?: (items: any[]) => void
+  onProgress?: (items: Record<string, unknown>[]) => void
 }
 
 export type FilterValue =
@@ -72,7 +72,7 @@ export interface SearchRequestOptions {
   }>
 }
 
-export interface SearchResult<T> {
+export interface SearchResult<T = Record<string, unknown>> {
   items: T[]
   totalHits: number
   startRow: number
@@ -175,11 +175,11 @@ export interface AttachmentInfo {
 
 // Builder Interface
 export interface IBatch {
-  createListItem(listTitle: string, payload: Record<string, any>): void
+  createListItem(listTitle: string, payload: Record<string, unknown>): void
   updateListItem(
     listTitle: string,
     id: number,
-    payload: Record<string, any>
+    payload: Record<string, unknown>
   ): void
   deleteListItem(listTitle: string, id: number): void
   deleteFile(serverRelativeUrl: string): void
@@ -187,22 +187,30 @@ export interface IBatch {
 
 export interface ISharePointClient {
   getBaseUrl(): string
-  request<T = any>(endpoint: string, options?: any): Promise<T>
-  search<T = any>(options: SearchRequestOptions, abortSignal?: AbortSignal): Promise<SearchResult<T>>
+  request<T>(
+    endpoint: string,
+    options?: Omit<RequestInit, 'body'> & {
+      body?: unknown
+      targetPath?: string
+      skipMetadata?: boolean
+      isWrite?: boolean
+    }
+  ): Promise<T>
+  search<T = Record<string, unknown>>(options: SearchRequestOptions, abortSignal?: AbortSignal): Promise<SearchResult<T>>
   executeBatch(builder: (batch: IBatch) => void, abortSignal?: AbortSignal): Promise<void>
-  createListItem<T = any>(
+  createListItem<T = Record<string, unknown>>(
     listTitle: string,
-    payload: Record<string, any>,
+    payload: Record<string, unknown>,
     abortSignal?: AbortSignal
   ): Promise<T>
   updateListItem(
     listTitle: string,
     id: number,
-    payload: Record<string, any>,
+    payload: Record<string, unknown>,
     abortSignal?: AbortSignal
   ): Promise<void>
   deleteListItem(listTitle: string, id: number, abortSignal?: AbortSignal): Promise<void>
-  getListItemById<T = any>(
+  getListItemById<T = Record<string, unknown>>(
     listTitle: string,
     id: number,
     select?: string[],
@@ -210,7 +218,7 @@ export interface ISharePointClient {
     abortSignal?: AbortSignal
   ): Promise<T>
 
-  getListItems<T = any>(
+  getListItems<T = Record<string, unknown>>(
     listTitle: string,
     options?: ListItemQueryOptions,
     abortSignal?: AbortSignal
@@ -246,7 +254,7 @@ export interface ISharePointClient {
   downloadFile(serverRelativeUrl: string, abortSignal?: AbortSignal): Promise<Blob>
   updateFileMetadata(
     serverRelativeUrl: string,
-    payload: Record<string, any>,
+    payload: Record<string, unknown>,
     abortSignal?: AbortSignal
   ): Promise<void>
   deleteFile(serverRelativeUrl: string, abortSignal?: AbortSignal): Promise<void>

@@ -16,8 +16,8 @@ export default {
     ],
     rules: {
         // add any team preferences here
-      "block-no-empty": false,
-      "no-empty-source": false
+      "block-no-empty": null,
+      "no-empty-source": null
     },
     ignoreFiles: ['dist/**/*', 'node_modules/**/*'],
 }

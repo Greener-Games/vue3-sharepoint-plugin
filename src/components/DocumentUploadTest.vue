@@ -9,10 +9,10 @@
     <!-- DRAG AND DROP ZONE -->
     <div
         class="upload-zone"
+        :class="{ 'is-dragging': isDragging }"
         @dragover.prevent="isDragging = true"
         @dragleave.prevent="isDragging = false"
         @drop.prevent="handleDrop"
-        :class="{ 'is-dragging': isDragging }"
     >
       <div class="upload-content">
         <div class="upload-icon-wrapper">
@@ -24,28 +24,28 @@
         </div>
 
         <div class="upload-text">
-          <button @click="triggerFileInput" class="link-btn">Click to Upload</button>
+          <button class="link-btn" @click="triggerFileInput">Click to Upload</button>
           <span class="text-muted"> or Drag & Drop files</span>
         </div>
         <p class="file-limit">(Max File Size: 25mb)</p>
 
         <input
+            ref="fileInputRef"
             type="file"
             multiple
-            ref="fileInputRef"
-            @change="handleFileSelect"
             class="hidden-input"
+            @change="handleFileSelect"
         />
       </div>
     </div>
 
     <!-- INSTRUCTION TEXT -->
-    <div class="instruction-text" v-if="files.length > 0">
+    <div v-if="files.length > 0" class="instruction-text">
       Enter missing field data to submit files.
     </div>
 
     <!-- DATA TABLE -->
-    <div class="table-container" v-if="files.length > 0">
+    <div v-if="files.length > 0" class="table-container">
       <table>
         <thead>
         <tr>
@@ -93,8 +93,8 @@
           <!-- Owner Input -->
           <td>
             <input
-                type="text"
                 v-model="item.meta.owner"
+                type="text"
                 placeholder="Enter name..."
                 class="table-input"
             >
@@ -116,7 +116,7 @@
 
           <!-- Delete Action -->
           <td class="text-center">
-            <button @click="removeFile(index)" class="trash-btn">
+            <button class="trash-btn" @click="removeFile(index)">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
             </button>
           </td>
@@ -130,8 +130,8 @@
       <button class="btn-outline" @click="triggerFileInput">Attach More File(s)</button>
       <button
           class="btn-primary"
-          @click="submitFiles"
           :disabled="!canSubmit || isUploading"
+          @click="submitFiles"
       >
         {{ isUploading ? 'Uploading...' : 'Submit' }}
       </button>
@@ -260,7 +260,7 @@ const submitFiles = async () => {
 
     try {
       // 1. Upload File
-      await upload(TARGET_FOLDER, item.file, item.file.name)
+      await upload(TARGET_FOLDER, item.file.name, item.file)
 
       // 2. Set Metadata
       // Construct URL (SharePoint usually needs server relative URL for updating metadata)
@@ -317,7 +317,7 @@ const submitFiles = async () => {
 
 .header-section h1 {
   font-size: 28px;
-  margin: 0 0 5px 0;
+  margin: 0 0 5px;
   font-weight: 400;
   color: #000;
 }
@@ -352,8 +352,8 @@ const submitFiles = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 15px auto;
-  box-shadow: 0 4px 6px rgba(91, 75, 245, 0.2);
+  margin: 0 auto 15px;
+  box-shadow: 0 4px 6px rgb(91 75 245 / 20%);
 }
 
 .upload-text {
@@ -552,7 +552,7 @@ tr:last-child td {
 .btn-primary:not(:disabled) {
   background: #5b4bf5; /* Active purple */
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(91, 75, 245, 0.3);
+  box-shadow: 0 2px 4px rgb(91 75 245 / 30%);
 }
 
 .message-area {

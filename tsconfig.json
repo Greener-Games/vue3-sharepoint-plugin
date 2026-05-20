@@ -10,17 +10,17 @@
     "csp.config.ts"
   ],
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@greener-games/vue3-sharepoint-plugin": [
+        "./plugins/@greener-games/vue3-sharepoint-plugin/src/index.ts"
       ]
-    },
-    "types": ["vite/client"],
-    "strictNullChecks": false
+    }
   },
   "exclude": [
     "node_modules",
-    "dist"
+    "**/dist"
   ]
 }
