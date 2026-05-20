@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - dev
+      - development
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    # Prevent this workflow from running on forks
+    if: github.repository == 'your-repo-owner/your-repo-name' # TODO: Replace with your repo details
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # This is required to analyze the commit history
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release

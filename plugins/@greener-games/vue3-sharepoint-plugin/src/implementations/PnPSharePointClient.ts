@@ -1,3 +1,17 @@
+import { spfi, type SPFI } from '@pnp/sp'
+import { PnPLogging } from '@pnp/logging'
+import { Caching } from '@pnp/queryable'
+import '@pnp/sp/webs'
+import '@pnp/sp/lists'
+import '@pnp/sp/items'
+import '@pnp/sp/files'
+import '@pnp/sp/folders'
+import '@pnp/sp/fields'
+import '@pnp/sp/site-users/web'
+import '@pnp/sp/site-groups/web'
+import '@pnp/sp/batching'
+import '@pnp/sp/attachments'
+import { SortDirection } from '@pnp/sp/search'
 import type {
   IBatch,
   ISharePointClient,
@@ -17,20 +31,6 @@ import type {
 import { getServerRelativePath } from '../utils/urlUtils'
 import { adaptFileMetadata } from '../utils/metadataAdapter'
 import { Logger } from '../utils/debug'
-import { spfi, type SPFI } from '@pnp/sp'
-import { PnPLogging } from '@pnp/logging'
-import { Caching } from '@pnp/queryable'
-import '@pnp/sp/webs'
-import '@pnp/sp/lists'
-import '@pnp/sp/items'
-import '@pnp/sp/files'
-import '@pnp/sp/folders'
-import '@pnp/sp/fields'
-import '@pnp/sp/site-users/web'
-import '@pnp/sp/site-groups/web'
-import '@pnp/sp/batching'
-import '@pnp/sp/attachments'
-import { SortDirection } from '@pnp/sp/search'
 
 /** Internal interface for search cache entries */
 interface SearchCacheEntry<T> {
@@ -40,16 +40,45 @@ interface SearchCacheEntry<T> {
 
 /** Interface for PnPjs Search Result structure to avoid 'any' */
 interface PnPSearchResults {
-    PrimaryQueryResult?: {
-        RelevantResults?: {
-            Table?: {
-                Rows?: Array<{
-                    Cells?: Array<{ Key: string, Value: unknown }>
-                }>
-            }
-            TotalRows?: number
-        }
+  PrimaryQueryResult?: {
+    RelevantResults?: {
+      Table?: {
+        Rows?: Array<{
+          Cells?: Array<{ Key: string; Value: unknown }>
+        }>
+      }
+      TotalRows?: number
     }
+  }
+}
+
+/** Interface for PnPjs User structure */
+interface PnPUser {
+  Id: number
+  Title: string
+  Email: string
+  LoginName: string
+}
+
+/** Interface for PnPjs List structure */
+interface PnPList {
+  Id: string
+  Title: string
+  Description: string
+  ItemCount: number
+  Hidden: boolean
+  ImageUrl: string
+}
+
+/** Interface for PnPjs File Version structure */
+interface PnPFileVersion {
+  VersionLabel: string
+  IsCurrentVersion: boolean
+  Created: string
+  Url: string
+  Size: number
+  CheckInComment?: string
+  CreatedBy?: PnPUser
 }
 
 export class PnPSharePointClient implements ISharePointClient {
@@ -188,7 +217,7 @@ export class PnPSharePointClient implements ISharePointClient {
         ClientType: 'ContentSearchRegular',
       })
 
-      const searchResults = searchResultsRaw as PnPSearchResults
+      const searchResults = searchResultsRaw as unknown as PnPSearchResults
 
       this.logger.log(`Search Results:`, [searchResults])
 
@@ -264,11 +293,11 @@ export class PnPSharePointClient implements ISharePointClient {
       }
 
       // G. Final Mapping
-      if (options.mapping) {
+      const mapping = options.mapping
+      if (mapping) {
         items = items.map((map) => {
           const out: Record<string, unknown> = {}
 
-          const mapping = options.mapping
           Object.entries(mapping).forEach(([k, v]) => {
             // 1. Get Value from Source (support dot notation e.g. "Author.Title")
             let val: unknown = map
@@ -367,6 +396,7 @@ export class PnPSharePointClient implements ISharePointClient {
     _abortSignal?: AbortSignal
   ): Promise<T> {
     const r = await this.sp.web.lists.getByTitle(listTitle).items.add(payload)
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     return r.data as unknown as T
   }
 
@@ -403,8 +433,8 @@ export class PnPSharePointClient implements ISharePointClient {
     if (expand && expand.length > 0) {
       q = q.expand(...expand)
     }
-    const result = await q()
-    return result as unknown as T
+    const result = (await q()) as unknown as T
+    return result
   }
 
   /** Retrieves multiple items from a list */
@@ -440,7 +470,9 @@ export class PnPSharePointClient implements ISharePointClient {
         options.onProgress(paged.results as unknown as Record<string, unknown>[])
       }
       while (paged.hasNext) {
-          paged = await paged.getNext()
+          const nextPaged = await paged.getNext()
+          if (!nextPaged) break
+          paged = nextPaged
           results = results.concat(paged.results)
           if (options?.onProgress) {
             options.onProgress(paged.results as unknown as Record<string, unknown>[])
@@ -449,8 +481,8 @@ export class PnPSharePointClient implements ISharePointClient {
       return results
     }
 
-    const results = await q()
-    return results as unknown as T[]
+    const results = (await q()) as unknown as T[]
+    return results
   }
 
   /** Gets attachment files for a list item */
@@ -459,10 +491,10 @@ export class PnPSharePointClient implements ISharePointClient {
     itemId: number,
     _abortSignal?: AbortSignal
   ): Promise<AttachmentInfo[]> {
-    const attachments = await this.sp.web.lists
+    const attachments = (await this.sp.web.lists
       .getByTitle(listTitle)
       .items.getById(itemId)
-      .attachmentFiles()
+      .attachmentFiles()) as unknown as Array<{ FileName: string, ServerRelativeUrl: string }>
     return attachments.map((a) => ({
       FileName: a.FileName,
       ServerRelativeUrl: a.ServerRelativeUrl,
@@ -513,7 +545,7 @@ export class PnPSharePointClient implements ISharePointClient {
       .getFolderByServerRelativePath(fullUrl)
       .files.addUsingPath(fileName, file, { Overwrite: true })
 
-    const data = r.data as { ServerRelativeUrl: string }
+    const data = r.data as unknown as { ServerRelativeUrl: string }
     return data.ServerRelativeUrl
   }
 
@@ -532,9 +564,11 @@ export class PnPSharePointClient implements ISharePointClient {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     const file = this.sp.web.getFileByServerRelativePath(fullUrl)
 
-    const itemInfo = await file.listItemAllFields.select('Id', 'ParentList/Title').expand('ParentList')()
+    const itemInfo = (await file.listItemAllFields
+      .select('Id', 'ParentList/Title')
+      .expand('ParentList')()) as unknown as { Id: number; ParentList?: { Title: string } }
 
-    if (!itemInfo.ParentList || typeof itemInfo.ParentList.Title !== 'string') {
+    if (!itemInfo || !itemInfo.ParentList || typeof itemInfo.ParentList.Title !== 'string') {
       throw new Error(`Could not determine list title for file: ${fullUrl}`)
     }
 
@@ -544,12 +578,16 @@ export class PnPSharePointClient implements ISharePointClient {
 
     const item = file.listItemAllFields
     // Use validateUpdateListItem to bypass some permission issues and handle complex fields
-    const validator = item as unknown as { validateUpdateListItem: (vals: unknown) => Promise<Array<{ ErrorCode: number, FieldName: string, ErrorMessage: string }>> }
-    const results = await (validator.validateUpdateListItem as (vals: unknown) => Promise<Array<{ ErrorCode: number, FieldName: string, ErrorMessage: string }>>)(formValues)
+    const validator = item as unknown as {
+      validateUpdateListItem: (vals: unknown) => Promise<
+        Array<{ ErrorCode: number; FieldName: string; ErrorMessage: string }>
+      >
+    }
+    const results = await validator.validateUpdateListItem(formValues)
     const errors = results.filter((r) => r.ErrorCode !== 0)
     if (errors.length > 0) {
-        const msg = errors.map((e) => `${e.FieldName}: ${e.ErrorMessage}`).join('; ')
-        throw new Error(`UpdateFileMetadata failed: ${msg}`)
+      const msg = errors.map((e) => `${e.FieldName}: ${e.ErrorMessage}`).join('; ')
+      throw new Error(`UpdateFileMetadata failed: ${msg}`)
     }
   }
 
@@ -571,7 +609,7 @@ export class PnPSharePointClient implements ISharePointClient {
 
   /** Gets information about the current web */
   async getWebInfo(_abortSignal?: AbortSignal): Promise<WebInfo> {
-    const w = await this.sp.web.select('Id', 'Title', 'Url', 'Description')()
+    const w = (await this.sp.web.select('Id', 'Title', 'Url', 'Description')()) as unknown as WebInfo
     return {
       Id: w.Id,
       Title: w.Title,
@@ -582,7 +620,7 @@ export class PnPSharePointClient implements ISharePointClient {
 
   /** Gets subwebs of the current web */
   async getSubwebs(_abortSignal?: AbortSignal): Promise<WebInfo[]> {
-    const webs = await this.sp.web.webs.select('Id', 'Title', 'Url', 'Description')()
+    const webs = (await this.sp.web.webs.select('Id', 'Title', 'Url', 'Description')()) as unknown as WebInfo[]
     return webs.map((w) => ({
       Id: w.Id,
       Title: w.Title,
@@ -593,7 +631,7 @@ export class PnPSharePointClient implements ISharePointClient {
 
   /** Gets all lists in the current web */
   async getLists(_abortSignal?: AbortSignal): Promise<ListInfo[]> {
-    const lists = await this.sp.web.lists.select('Id', 'Title', 'Description', 'ItemCount', 'Hidden', 'ImageUrl')()
+    const lists = (await this.sp.web.lists.select('Id', 'Title', 'Description', 'ItemCount', 'Hidden', 'ImageUrl')()) as unknown as PnPList[]
     return lists.map((l) => ({
       Id: l.Id,
       Title: l.Title,
@@ -606,7 +644,7 @@ export class PnPSharePointClient implements ISharePointClient {
 
   /** Gets a single list by its title */
   async getList(listTitle: string, _abortSignal?: AbortSignal): Promise<ListInfo> {
-    const l = await this.sp.web.lists.getByTitle(listTitle).select('Id', 'Title', 'Description', 'ItemCount', 'Hidden', 'ImageUrl')()
+    const l = (await this.sp.web.lists.getByTitle(listTitle).select('Id', 'Title', 'Description', 'ItemCount', 'Hidden', 'ImageUrl')()) as unknown as PnPList
     return {
       Id: l.Id,
       Title: l.Title,
@@ -625,7 +663,7 @@ export class PnPSharePointClient implements ISharePointClient {
     _abortSignal?: AbortSignal
   ): Promise<ListInfo> {
     const r = await this.sp.web.lists.add(title, description, template)
-    const l = r.data
+    const l = r.data as unknown as PnPList
     return {
       Id: l.Id,
       Title: l.Title,
@@ -647,7 +685,7 @@ export class PnPSharePointClient implements ISharePointClient {
 
   /** Gets the currently logged in user */
   async getCurrentUser(_abortSignal?: AbortSignal): Promise<UserInfo> {
-    const user = await this.sp.web.currentUser()
+    const user = (await this.sp.web.currentUser()) as unknown as PnPUser
     return {
         Id: user.Id,
         Title: user.Title,
@@ -658,7 +696,7 @@ export class PnPSharePointClient implements ISharePointClient {
 
   /** Gets all users on the site */
   async getSiteUsers(_abortSignal?: AbortSignal): Promise<UserInfo[]> {
-    const users = await this.sp.web.siteUsers()
+    const users = (await this.sp.web.siteUsers()) as unknown as PnPUser[]
     return users.map(user => ({
         Id: user.Id,
         Title: user.Title,
@@ -671,9 +709,9 @@ export class PnPSharePointClient implements ISharePointClient {
   async searchUsers(query: string, _abortSignal?: AbortSignal): Promise<UserInfo[]> {
     if (!query) return []
 
-    const users = await this.sp.web.siteUsers.filter(
+    const users = (await this.sp.web.siteUsers.filter(
       `substringof('${query}', Title) or substringof('${query}', Email)`
-    )()
+    )()) as unknown as PnPUser[]
     return users.map(user => ({
         Id: user.Id,
         Title: user.Title,
@@ -685,7 +723,7 @@ export class PnPSharePointClient implements ISharePointClient {
   /** Ensures a user exists on the site */
   async ensureUser(loginName: string, _abortSignal?: AbortSignal): Promise<UserInfo> {
     const result = await this.sp.web.ensureUser(loginName)
-    const user = result.data
+    const user = result.data as unknown as PnPUser
     return {
         Id: user.Id,
         Title: user.Title,
@@ -696,7 +734,7 @@ export class PnPSharePointClient implements ISharePointClient {
 
   /** Gets groups for a specific user or current user */
   async getUserGroups(email?: string, _abortSignal?: AbortSignal): Promise<SiteGroup[]> {
-    let groups;
+    let groups: Array<{ Id: number, Title: string, Description: string, LoginName: string }>;
     if (email) {
       groups = await this.sp.web.siteUsers.getByEmail(email).groups()
     } else {
@@ -713,9 +751,10 @@ export class PnPSharePointClient implements ISharePointClient {
   /** Adds a user to a SharePoint group */
   async addUserToGroup(groupName: string, loginName: string, _abortSignal?: AbortSignal): Promise<void> {
     const userResult = await this.sp.web.ensureUser(loginName)
+    const user = userResult.data as unknown as PnPUser
     await this.sp.web.siteGroups
       .getByName(groupName)
-      .users.add(userResult.data.LoginName)
+      .users.add(user.LoginName)
   }
 
   /** Removes a user from a SharePoint group */
@@ -739,7 +778,7 @@ export class PnPSharePointClient implements ISharePointClient {
       Title: groupName,
       Description: description,
     })
-    const g = r.data
+    const g = r.data as unknown as PnPUser & { Description: string }
     return {
         Id: g.Id,
         Title: g.Title,
@@ -754,7 +793,7 @@ export class PnPSharePointClient implements ISharePointClient {
     _abortSignal?: AbortSignal
   ): Promise<SPBasePermissions> {
     if (email) {
-      const user = await this.sp.web.siteUsers.getByEmail(email)()
+      const user = (await this.sp.web.siteUsers.getByEmail(email)()) as unknown as PnPUser
       return await this.sp.web.getUserEffectivePermissions(user.LoginName)
     }
     return await this.sp.web.getCurrentUserEffectivePermissions()
@@ -765,18 +804,29 @@ export class PnPSharePointClient implements ISharePointClient {
   // --------------------------------------------------------------------------
 
   /** Gets all visible fields for a list */
-  async getListFields(listTitle: string, _webUrl?: string, _abortSignal?: AbortSignal): Promise<FieldDefinition[]> {
-    const r = await this.sp.web.lists
+  async getListFields(
+    listTitle: string,
+    _webUrl?: string,
+    _abortSignal?: AbortSignal
+  ): Promise<FieldDefinition[]> {
+    const r = (await this.sp.web.lists
       .getByTitle(listTitle)
-      .fields.filter('Hidden eq false')()
+      .fields.filter('Hidden eq false')()) as unknown as Array<{
+      InternalName: string
+      Title: string
+      TypeAsString: string
+      Hidden: boolean
+      Choices?: string[]
+      TermSetId?: string
+    }>
 
-    return r.map((f: any) => ({
-      InternalName: f.InternalName as string,
-      Title: f.Title as string,
-      TypeAsString: f.TypeAsString as string,
-      Hidden: f.Hidden as boolean,
-      Choices: (f.Choices as string[]) || [],
-      TermSetId: (f.TermSetId as string) || undefined
+    return r.map((f) => ({
+      InternalName: f.InternalName,
+      Title: f.Title,
+      TypeAsString: f.TypeAsString,
+      Hidden: f.Hidden,
+      Choices: f.Choices || [],
+      TermSetId: f.TermSetId || undefined,
     }))
   }
 
@@ -786,9 +836,10 @@ export class PnPSharePointClient implements ISharePointClient {
     fieldInternalName: string,
     _abortSignal?: AbortSignal
   ): Promise<string[]> {
-    const f = await this.sp.web.lists
+    const f = (await this.sp.web.lists
       .getByTitle(listTitle)
-      .fields.getByInternalNameOrTitle(fieldInternalName).select('Choices')()
+      .fields.getByInternalNameOrTitle(fieldInternalName)
+      .select('Choices')()) as unknown as { Choices?: string[] }
     return f.Choices || []
   }
 
@@ -832,35 +883,43 @@ export class PnPSharePointClient implements ISharePointClient {
   // --------------------------------------------------------------------------
 
   /** Gets version history for a file */
-  async getFileVersions(serverRelativeUrl: string, _abortSignal?: AbortSignal): Promise<FileVersion[]> {
+  async getFileVersions(
+    serverRelativeUrl: string,
+    _abortSignal?: AbortSignal
+  ): Promise<FileVersion[]> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
-    const versions = await this.sp.web
+    const versions = (await this.sp.web
       .getFileByServerRelativePath(fullUrl)
-      .versions.expand('CreatedBy')()
+      .versions.expand('CreatedBy')()) as unknown as PnPFileVersion[]
 
-    return versions.map((v: Record<string, unknown>) => ({
-      VersionLabel: v.VersionLabel as string,
-      Created: v.Created as string,
-      CheckInComment: v.CheckInComment as string,
-      IsCurrentVersion: v.IsCurrentVersion as boolean,
-      Size: v.Size as number,
-      Url: v.Url as string,
+    return versions.map((v) => ({
+      VersionLabel: v.VersionLabel,
+      Created: v.Created,
+      CheckInComment: v.CheckInComment || '',
+      IsCurrentVersion: v.IsCurrentVersion,
+      Size: v.Size,
+      Url: v.Url,
       CreatedBy: {
-        Id: (v.CreatedBy as UserInfo)?.Id,
-        Title: (v.CreatedBy as UserInfo)?.Title,
-        Email: (v.CreatedBy as UserInfo)?.Email,
+        Id: v.CreatedBy?.Id,
+        Title: v.CreatedBy?.Title,
+        Email: v.CreatedBy?.Email,
       },
     }))
   }
 
   /** Gets a link to the version history page for a file */
-  async getVersionHistoryLink(serverRelativeUrl: string, _abortSignal?: AbortSignal): Promise<string> {
+  async getVersionHistoryLink(
+    serverRelativeUrl: string,
+    _abortSignal?: AbortSignal
+  ): Promise<string> {
     const fullUrl = getServerRelativePath(serverRelativeUrl, this.baseUrl)
     const file = this.sp.web.getFileByServerRelativePath(fullUrl)
-    const item = await file.listItemAllFields.select('Id', 'ParentList/Id').expand('ParentList')()
+    const item = (await file.listItemAllFields
+      .select('Id', 'ParentList/Id')
+      .expand('ParentList')()) as unknown as { Id: number; ParentList?: { Id: string } }
 
     if (!item || !item.ParentList) {
-         throw new Error(`Could not resolve List ID for file: ${fullUrl}`)
+      throw new Error(`Could not resolve List ID for file: ${fullUrl}`)
     }
 
     const listId = String(item.ParentList.Id)
@@ -953,7 +1012,9 @@ export class PnPSharePointClient implements ISharePointClient {
           if (found) mp = found
         }
         if (Array.isArray(value))
-          parts.push(`(${value.map((v) => `${mp}:"${String(v)}"`).join(' OR ')})`)
+          parts.push(
+            `(${value.map((v) => `${mp}:"${String(v)}"`).join(' OR ')})`
+          )
         else parts.push(`${mp}:"${String(value)}"`)
       }
     }

@@ -96,7 +96,7 @@
                 <!-- Only visible if a search has been EXECUTED and is not empty -->
                 <div v-if="hasSearchTerm && doc.content" class="search-snippet">
                   <div class="snippet-label">...found inside document:</div>
-                  <p v-html="formatSummary(doc.content)"></p>
+                  <p v-html="formatSummary(doc.content || '')"></p>
                 </div>
 
                 <div class="meta-row">
@@ -335,8 +335,21 @@
   // Is Loading?
   const isSearching = computed(() => searchCtx.loading.value)
 
+  interface SearchDoc {
+    id: string | number
+    url?: string
+    title?: string
+    content?: string
+    date?: string
+    region?: string
+    division?: string
+    practice?: string
+    capabilities?: string
+    markets?: string
+  }
+
   // Results List (Mapped from plugin state)
-  const resultsList = computed(() => (searchCtx.results.value?.items || []) as Record<string, unknown>[])
+  const resultsList = computed(() => (searchCtx.results.value?.items as unknown as SearchDoc[]) || [])
 
   // Total Hits (From server)
   const totalHits = computed(() => searchCtx.totalHits.value)

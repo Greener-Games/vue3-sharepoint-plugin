@@ -7,63 +7,48 @@ export interface FormValue {
 
 /**
  * Transforms a simple key-value payload into a format suitable for ValidateUpdateListItem.
- * It automatically detects field types (Taxonomy, User, Choice, etc.) by fetching
- * the list definition and formatting the values accordingly.
- *
- * @param client The SharePoint client instance (Rest or PnP)
- * @param listTitle The title of the list/library containing the item
- * @param payload The metadata to update (e.g. { "MyTaxonomy": { Label: "A", TermGuid: "B" }, "AssignedTo": "user@email.com" })
- * @param webUrl Optional web URL if different from base URL
+ * Handles specialized SharePoint fields like Taxonomy, Person, Choice, etc.
  */
 export async function adaptFileMetadata(
   client: ISharePointClient,
   listTitle: string,
-  payload: Record<string, unknown>,
-  webUrl?: string
+  payload: Record<string, unknown>
 ): Promise<FormValue[]> {
-  const fields = await client.getListFields(listTitle, webUrl)
+  const fields = await client.getListFields(listTitle)
   const formValues: FormValue[] = []
 
   for (const [key, value] of Object.entries(payload)) {
-    // 1. Find Field Definition
-    // We search by InternalName first, then Title
     const field = fields.find(
       (f) => f.InternalName === key || f.Title === key
     )
-
     if (!field) {
-      // If field is unknown, we pass it as string, assuming InternalName was used correctly
-      // but warn the developer.
-      console.warn(`[SharePointPlugin] Field '${key}' not found in list '${listTitle}'. Sending value as-is.`)
+      // If we don't know the field, pass through as string
       formValues.push({
         FieldName: key,
-        FieldValue: typeof value === 'string' ? value : JSON.stringify(value)
+        // eslint-disable-next-line @typescript-eslint/no-base-to-string
+        FieldValue: String(value ?? ''),
       })
       continue
     }
 
-    // 2. Adapt Value based on Type
-    const adaptedValue = await adaptValue(client, field, value)
-
+    const formattedValue = await formatFieldValue(client, field, value)
     formValues.push({
       FieldName: field.InternalName,
-      FieldValue: adaptedValue
+      FieldValue: formattedValue,
     })
   }
 
   return formValues
 }
 
-async function adaptValue(
+async function formatFieldValue(
   client: ISharePointClient,
   field: FieldDefinition,
   value: unknown
 ): Promise<string> {
   if (value === null || value === undefined) return ''
 
-  const typeAsString = field.TypeAsString
-
-  switch (typeAsString) {
+  switch (field.TypeAsString) {
     case 'TaxonomyFieldType':
     case 'TaxonomyFieldTypeMulti':
       return await formatTaxonomy(client, field, value)
@@ -77,10 +62,14 @@ async function adaptValue(
       if (Array.isArray(value)) {
         return value.join(';')
       }
-      return typeof value === 'object' && value !== null ? JSON.stringify(value) : String((value ?? '') as any)
+      return typeof value === 'object' && value !== null
+        ? JSON.stringify(value)
+        : String((value as string | number | boolean | null) ?? '')
 
     case 'Choice':
-      return typeof value === 'object' && value !== null ? JSON.stringify(value) : String((value ?? '') as any)
+      return typeof value === 'object' && value !== null
+        ? JSON.stringify(value)
+        : String((value as string | number | boolean | null) ?? '')
 
     case 'Boolean':
       // ValidateUpdateListItem expects "TRUE" or "FALSE" (case insensitive but standard is caps)
@@ -89,25 +78,33 @@ async function adaptValue(
     case 'DateTime':
       // ValidateUpdateListItem works well with ISO strings
       if (value instanceof Date) return value.toISOString()
-      return typeof value === 'object' && value !== null ? JSON.stringify(value) : String((value ?? '') as any)
+      return typeof value === 'object' && value !== null
+        ? JSON.stringify(value)
+        : String((value as string | number | boolean | null) ?? '')
 
     case 'Number':
     case 'Currency':
-      return typeof value === 'object' && value !== null ? JSON.stringify(value) : String((value ?? '') as any)
+      return typeof value === 'object' && value !== null
+        ? JSON.stringify(value)
+        : String((value as string | number | boolean | null) ?? '')
 
     case 'URL':
       // URL field value: "Url, Description"
       if (typeof value === 'object' && value !== null) {
-          const urlObj = value as { Url?: string; Description?: string }
-          if (urlObj.Url) {
-              return `${urlObj.Url}, ${urlObj.Description || ''}`
-          }
+        const urlObj = value as { Url?: string; Description?: string }
+        if (urlObj.Url) {
+          return `${urlObj.Url}, ${urlObj.Description || ''}`
+        }
       }
-      return typeof value === 'object' && value !== null ? JSON.stringify(value) : String((value ?? '') as any)
+      return typeof value === 'object' && value !== null
+        ? JSON.stringify(value)
+        : String((value as string | number | boolean | null) ?? '')
 
     default:
       // Text, Note, etc.
-      return typeof value === 'object' && value !== null ? JSON.stringify(value) : String((value ?? '') as any)
+      return typeof value === 'object' && value !== null
+        ? JSON.stringify(value)
+        : String((value as string | number | boolean | null) ?? '')
   }
 }
 
@@ -154,6 +151,8 @@ async function formatSingleTaxonomy(client: ISharePointClient, field: FieldDefin
     return val
   }
 
+  if (val === null || val === undefined) return ''
+  // eslint-disable-next-line @typescript-eslint/no-base-to-string
   return typeof val === 'object' ? JSON.stringify(val) : String(val)
 }
 
@@ -173,19 +172,21 @@ async function formatUser(client: ISharePointClient, value: unknown): Promise<st
 }
 
 async function resolveUser(client: ISharePointClient, val: unknown): Promise<{ LoginName: string }> {
-  // If it's an object with LoginName, use it
-  if (val && typeof val === 'object' && 'LoginName' in val) {
-    return val as { LoginName: string }
+  if (typeof val === 'object' && val !== null) {
+    const userObj = val as { LoginName?: string; Email?: string }
+    if (userObj.LoginName) return { LoginName: userObj.LoginName }
+    if (userObj.Email) {
+       try {
+         const user = await client.ensureUser(userObj.Email)
+         return { LoginName: user.LoginName }
+       } catch {
+         return { LoginName: userObj.Email }
+       }
+    }
   }
 
-  // If string, assume Email or LoginName
   if (typeof val === 'string') {
-    // If it looks like a claim "i:0#", return it
-    if (val.indexOf('i:0#') > -1) {
-      return { LoginName: val }
-    }
-
-    // Otherwise try to ensure user (resolve email to claim)
+    // If it's an email or login name, try to resolve it
     try {
       const user = await client.ensureUser(val)
       return user

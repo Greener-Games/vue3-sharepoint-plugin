@@ -260,7 +260,7 @@ const submitFiles = async () => {
 
     try {
       // 1. Upload File
-      await upload(TARGET_FOLDER, item.file, item.file.name)
+      await upload(TARGET_FOLDER, item.file.name, item.file)
 
       // 2. Set Metadata
       // Construct URL (SharePoint usually needs server relative URL for updating metadata)

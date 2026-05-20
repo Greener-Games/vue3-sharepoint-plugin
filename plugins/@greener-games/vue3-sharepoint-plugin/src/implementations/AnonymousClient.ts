@@ -225,7 +225,7 @@ export class AnonymousClient implements ISharePointClient {
         if (d && typeof d === 'object' && 'results' in d && d.results) {
             return d.results as unknown as T;
         }
-        return d as unknown as T;
+        return d;
     }
 
     return data as unknown as T
@@ -404,7 +404,7 @@ export class AnonymousClient implements ISharePointClient {
         // Map to SearchResult
         const items = results.map(item => {
              const out = { ...item } as Record<string, unknown>;
-             out.Path = (item.EncodedAbsUrl as string) || this.baseUrl + (item.FileRef as string);
+             out.Path = (item.EncodedAbsUrl) || this.baseUrl + (item.FileRef as string);
              if (opts.includeRelativePath) {
                  out.relativePath = item.FileRef;
              }
@@ -526,30 +526,43 @@ export class AnonymousClient implements ISharePointClient {
       let allItems: T[] = []
       let nextUrl: string | undefined = endpoint
 
+      interface ListResponse {
+        d?: {
+          results?: unknown
+          __next?: string
+        }
+        value?: unknown
+        '@odata.nextLink'?: string
+        'odata.nextLink'?: string
+      }
+
       while (nextUrl) {
-        const response = await this.request<SPVerboseResponse<T[]> & SPODataResponse<T[]>>(nextUrl, {
+        const response: ListResponse = await this.request<ListResponse>(nextUrl, {
           skipMetadata: true,
           signal
         })
 
         if (response && response.d) {
-          const results = response.d.results || (response.d as unknown as T[])
+          const results = response.d.results !== undefined ? response.d.results : response.d
           if (Array.isArray(results)) {
-            allItems = allItems.concat(results)
+            allItems = allItems.concat(results as T[])
             if (options?.onProgress) {
-              options.onProgress(results as unknown as Record<string, unknown>[])
+              options.onProgress(results as Record<string, unknown>[])
             }
           } else {
-            allItems.push(results as unknown as T)
+            allItems.push(results as T)
             if (options?.onProgress) {
-              options.onProgress([results as unknown as Record<string, unknown>])
+              options.onProgress([results as Record<string, unknown>])
             }
           }
           nextUrl = response.d.__next
         } else if (response && response.value) {
-          allItems = allItems.concat(response.value)
-          if (options?.onProgress) {
-            options.onProgress(response.value as unknown as Record<string, unknown>[])
+          const val = response.value
+          if (Array.isArray(val)) {
+            allItems = allItems.concat(val as T[])
+            if (options?.onProgress) {
+              options.onProgress(val as Record<string, unknown>[])
+            }
           }
           nextUrl = response['@odata.nextLink'] || response['odata.nextLink']
         } else {
