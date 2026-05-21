@@ -148,7 +148,7 @@ export class AnonymousClient implements ISharePointClient {
         if (!endpoint.startsWith('http')) {
             finalEndpoint = `${this.baseUrl}${endpoint}`;
         } else {
-            finalEndpoint = `${this.baseUrl}${endpoint}`;
+            finalEndpoint = endpoint;
         }
     }
 
