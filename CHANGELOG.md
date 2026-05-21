@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/Greener-Games/vue3-sharepoint-plugin/compare/v1.0.2...v1.0.3) (2026-05-21)
+
+
+### Bug Fixes
+
+* does this now run successfully ([fd29032](https://github.com/Greener-Games/vue3-sharepoint-plugin/commit/fd29032b312c76ae29f2e7588104c6bbc85d87c5))
+
 ## [1.0.2](https://github.com/Greener-Games/vue3-sharepoint-plugin/compare/v1.0.1...v1.0.2) (2026-05-20)
 
 
