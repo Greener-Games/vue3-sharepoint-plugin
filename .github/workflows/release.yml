@@ -41,7 +41,7 @@ jobs:
     name: Trigger Publish
     needs: release
     if: needs.release.outputs.new_release_published == 'true'
-    uses: ./.github/workflows/publish.yml
+    uses: ./.github/workflows/publish-plugins.yml
     with:
       version: ${{ needs.release.outputs.new_release_version }}
     secrets:
