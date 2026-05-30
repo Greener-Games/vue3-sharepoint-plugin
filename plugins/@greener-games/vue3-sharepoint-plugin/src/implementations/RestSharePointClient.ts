@@ -25,6 +25,7 @@ interface InternalBatchItem {
   method: string
   body?: unknown
   headers?: Record<string, string>
+  listTitle?: string
 }
 
 /** Internal interface for cached items */
@@ -294,6 +295,7 @@ export class RestSharePointClient implements ISharePointClient {
           method: 'POST',
           url: `/_api/web/lists/getbytitle('${list}')/items`,
           body: payload,
+          listTitle: list
         })
       },
       updateListItem: (list, id, payload) => {
@@ -302,6 +304,7 @@ export class RestSharePointClient implements ISharePointClient {
           url: `/_api/web/lists/getbytitle('${list}')/items(${id})`,
           body: payload,
           headers: { 'IF-MATCH': '*' },
+          listTitle: list
         })
       },
       deleteListItem: (list, id) => {
@@ -328,6 +331,17 @@ export class RestSharePointClient implements ISharePointClient {
     const batchGuid = 'batch_' + this.generateUuid()
     const changesetGuid = 'changeset_' + this.generateUuid()
     const digest = await this.getRequestDigest()
+
+    // Pre-process items that need __metadata
+    for (const req of requests) {
+      if (req.listTitle && req.body && typeof req.body === 'object' && !('__metadata' in req.body)) {
+        const type = await this.getListEntityType(req.listTitle)
+        req.body = {
+          __metadata: { type },
+          ...req.body
+        }
+      }
+    }
 
     let body = `--${batchGuid}\r\nContent-Type: multipart/mixed; boundary=${changesetGuid}\r\n\r\n`
 
@@ -754,9 +768,15 @@ export class RestSharePointClient implements ISharePointClient {
 
   /** Creates a new item in a list */
   async createListItem<T>(list: string, payload: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
+    const type = await this.getListEntityType(list);
+    const body = {
+      __metadata: { type },
+      ...payload
+    };
+
     return await this.request<T>(`/_api/web/lists/getbytitle('${list}')/items`, {
       method: 'POST',
-      body: payload,
+      body,
       isWrite: true,
       signal
     })
@@ -764,9 +784,15 @@ export class RestSharePointClient implements ISharePointClient {
 
   /** Updates an existing item in a list */
   async updateListItem(list: string, id: number, payload: Record<string, unknown>, signal?: AbortSignal): Promise<void> {
+    const type = await this.getListEntityType(list);
+    const body = {
+      __metadata: { type },
+      ...payload
+    };
+
     await this.request(`/_api/web/lists/getbytitle('${list}')/items(${id})`, {
       method: 'POST',
-      body: payload,
+      body,
       headers: {
         'X-HTTP-Method': 'MERGE',
         'IF-MATCH': '*',
@@ -1135,6 +1161,21 @@ export class RestSharePointClient implements ISharePointClient {
   }
 
   // --- Helpers ---
+  private async getListEntityType(listTitle: string): Promise<string> {
+    const cacheKey = `ListEntityType:${listTitle}`;
+    const cached = this.cache.get<string>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const list = await this.request<{ ListItemEntityTypeFullName: string }>(`/_api/web/lists/getbytitle('${listTitle}')?$select=ListItemEntityTypeFullName`);
+      const type = list.ListItemEntityTypeFullName || 'SP.Data.ListItem';
+      this.cache.set(cacheKey, type);
+      return type;
+    } catch {
+      return 'SP.Data.ListItem';
+    }
+  }
+
   private async getHeaders(isWrite = false, contextUrl?: string): Promise<Headers> {
     const headers = new Headers({
       Accept: 'application/json;odata=verbose',
