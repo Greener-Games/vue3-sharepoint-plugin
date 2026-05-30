@@ -62,5 +62,14 @@
     "vite-plugin-vue-devtools": "^8.1.2",
     "vue-eslint-parser": "^10.4.0",
     "vue-tsc": "^3.3.0"
-  }
+  },
+  "author": "Greener Games",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Greener-Games/vue3-sharepoint-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Greener-Games/vue3-sharepoint-plugin/issues"
+  },
+  "homepage": "https://github.com/Greener-Games/vue3-sharepoint-plugin#readme"
 }
