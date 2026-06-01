@@ -8,11 +8,16 @@ on:
       - dev
       - development
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    if: github.repository == 'Greener-Games/vue3-sharepoint-plugin'
+    if: github.event.repository.fork == false
     outputs:
       new_release_published: ${{ steps.semantic.outputs.new_release_published }}
       new_release_version: ${{ steps.semantic.outputs.new_release_version }}
