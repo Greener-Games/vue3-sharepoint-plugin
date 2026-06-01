@@ -19,17 +19,9 @@
     "dist"
   ],
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "lint:styles": "stylelint \"**/*.{css,vue}\"",
-    "lint:styles:fix": "stylelint \"**/*.{css,vue}\" --fix",
-    "format": "prettier --write .",
-    "type-check": "vue-tsc --noEmit",
-    "release": "semantic-release",
-    "version": "node -e \"const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json')); if (pkg.workspaces) { const { execSync } = require('child_process'); execSync('npm version ' + pkg.version + ' --workspaces --no-git-tag-version', { stdio: 'inherit' }); }\""
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@pnp/logging": "^3.0.0",
