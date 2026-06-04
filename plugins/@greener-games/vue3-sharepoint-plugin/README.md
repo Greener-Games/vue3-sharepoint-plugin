@@ -1,5 +1,6 @@
 # Vue 3 SharePoint Plugin
 
+[![Vite](https://img.shields.io/badge/vite-%23646CFF.svg?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D.svg?style=flat&logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178C6.svg?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![npm version](https://img.shields.io/npm/v/@greener-games/vue3-sharepoint-plugin.svg)](https://www.npmjs.com/package/@greener-games/vue3-sharepoint-plugin)
