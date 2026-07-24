@@ -44,6 +44,7 @@ export interface SearchRequestOptions {
   startRow?: number
   mapping?: Record<string, string>
   selectFields?: string[]
+  searchFields?: string[]
   refiners?: string[]
   /**
    * Fields to expand in the hydration step (e.g. ['Author', 'Department']).

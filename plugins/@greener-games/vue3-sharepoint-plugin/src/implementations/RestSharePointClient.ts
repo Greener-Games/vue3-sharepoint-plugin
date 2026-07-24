@@ -434,7 +434,7 @@ export class RestSharePointClient implements ISharePointClient {
         SummaryLength: 250,
         EnableStemming: true,
         TrimDuplicates: false,
-        SortList: opts.sortList
+        SortList: opts.sortList && opts.sortList.length > 0
           ? {
               results: opts.sortList.map((s) => ({
                 Property: s.property,
@@ -677,14 +677,12 @@ export class RestSharePointClient implements ISharePointClient {
 
     if (txt !== '*') {
       const escapedTxt = txt.replace(/"/g, '""')
+      const fields = opts.searchFields && opts.searchFields.length > 0 ? opts.searchFields : ['Title', 'Filename']
+      const fieldSearch = fields.map(f => `${f}:"${escapedTxt}*"`).join(' OR ')
       if (opts.searchTitleOnly) {
-        // Logic for "Name Only" search
-        parts.push(`(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*")`)
+        parts.push(`(${fieldSearch})`)
       } else {
-        // Logic for "Everything" search (Title, Name, and Content)
-        parts.push(
-          `(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*" OR ${escapedTxt}*)`
-        )
+        parts.push(`(${fieldSearch} OR ${escapedTxt}*)`)
       }
     } else {
       parts.push('*')

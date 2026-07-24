@@ -252,44 +252,27 @@ export class PnPSharePointClient implements ISharePointClient {
       if (needsHydration && items.length > 0) {
         const listSelect = userSelects.filter((f) => !this.isSearchOnlyProp(f))
 
-        const [batchedWeb, execute] = this.sp.web.batched()
-        const hydrationMap = new Map<string, unknown>()
+        await Promise.all(
+          items.map(async (item) => {
+            if (typeof item.ListId === 'string' && (typeof item.ListItemId === 'string' || typeof item.ListItemId === 'number')) {
+              const listId = item.ListId
+              const itemId = typeof item.ListItemId === 'string' ? parseInt(item.ListItemId, 10) : item.ListItemId
+              
+              let q = this.sp.web.lists.getById(listId).items.getById(itemId)
+              if (listSelect.length > 0) q = q.select(...listSelect)
+              if (userExpands.length > 0) q = q.expand(...userExpands)
 
-        items.forEach((item) => {
-          if (typeof item.ListId === 'string' && (typeof item.ListItemId === 'string' || typeof item.ListItemId === 'number')) {
-            const listId = item.ListId
-            const itemId = typeof item.ListItemId === 'string' ? parseInt(item.ListItemId, 10) : item.ListItemId
-            let q = batchedWeb.lists
-              .getById(listId)
-              .items.getById(itemId)
-
-            if (listSelect.length > 0) q = q.select(...listSelect)
-            if (userExpands.length > 0) q = q.expand(...userExpands)
-
-            void q()
-              .then((r) => {
-                hydrationMap.set(`${listId}:${itemId}`, r)
-              })
-              .catch(() => {
+              try {
+                const hydrated = await q()
+                if (hydrated) {
+                  Object.assign(item, hydrated)
+                }
+              } catch {
                 /* ignore missing items */
-              })
-          }
-        })
-
-        await execute()
-
-        // Merge Hydrated Data
-        items = items.map((item) => {
-          if (typeof item.ListId === 'string' && (typeof item.ListItemId === 'string' || typeof item.ListItemId === 'number')) {
-            const listId = item.ListId
-            const itemId = typeof item.ListItemId === 'string' ? parseInt(item.ListItemId, 10) : item.ListItemId
-            const hydrated = hydrationMap.get(`${listId}:${itemId}`)
-            if (hydrated) {
-              return { ...item, ...(hydrated as Record<string, unknown>) }
+              }
             }
-          }
-          return item
-        })
+          })
+        )
       }
 
       // G. Final Mapping
@@ -363,26 +346,26 @@ export class PnPSharePointClient implements ISharePointClient {
 
   /** Executes multiple SharePoint operations in a single batch */
   async executeBatch(builder: (batch: IBatch) => void, _abortSignal?: AbortSignal): Promise<void> {
-    const [batchedWeb, execute] = this.sp.web.batched()
+    const promises: Promise<any>[] = []
 
     const proxy: IBatch = {
       createListItem: (list, payload) => {
-        void batchedWeb.lists.getByTitle(list).items.add(payload)
+        promises.push(this.sp.web.lists.getByTitle(list).items.add(payload))
       },
       updateListItem: (list, id, payload) => {
-        void batchedWeb.lists.getByTitle(list).items.getById(id).update(payload)
+        promises.push(this.sp.web.lists.getByTitle(list).items.getById(id).update(payload))
       },
       deleteListItem: (list, id) => {
-        void batchedWeb.lists.getByTitle(list).items.getById(id).recycle()
+        promises.push(this.sp.web.lists.getByTitle(list).items.getById(id).recycle())
       },
       deleteFile: (url) => {
-        void batchedWeb.getFileByServerRelativePath(url).recycle()
+        promises.push(this.sp.web.getFileByServerRelativePath(url).recycle())
       },
     }
 
     builder(proxy)
     this.logger.log(`Executing Batch...`)
-    await execute()
+    await Promise.all(promises)
   }
 
   // --------------------------------------------------------------------------
@@ -948,12 +931,12 @@ export class PnPSharePointClient implements ISharePointClient {
     const txt = opts.query?.trim() || '*'
     if (txt !== '*') {
       const escapedTxt = txt.replace(/"/g, '""')
+      const fields = opts.searchFields && opts.searchFields.length > 0 ? opts.searchFields : ['Title', 'Filename']
+      const fieldSearch = fields.map(f => `${f}:"${escapedTxt}*"`).join(' OR ')
       if (opts.searchTitleOnly) {
-        parts.push(`(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*")`)
+        parts.push(`(${fieldSearch})`)
       } else {
-        parts.push(
-          `(Title:"${escapedTxt}*" OR Filename:"${escapedTxt}*" OR ${escapedTxt}*)`
-        )
+        parts.push(`(${fieldSearch} OR ${escapedTxt}*)`)
       }
     } else {
       parts.push('*')
