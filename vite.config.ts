@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import checker from 'vite-plugin-checker';
 import path from 'path';
 import { cspString } from './csp.config';
-import vueDevTools from 'vite-plugin-vue-devtools'
+import vueDevTools from 'vite-plugin-vue-devtools';
 
 function cspPlugin(): Plugin {
   return {
@@ -35,7 +35,7 @@ export default defineConfig({
       vueTsc: true,
       eslint: {
         useFlatConfig: true,
-        lintCommand: 'eslint src'
+        lintCommand: 'eslint src',
       },
       stylelint: { lintCommand: 'stylelint "./**/*.{css,vue}"' },
     }),
@@ -43,8 +43,8 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(__dirname, './src'),
     },
-    extensions: [".mjs", ".js", ".ts", ".jsx", ".tsx", ".json"],
+    extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json'],
   },
 });

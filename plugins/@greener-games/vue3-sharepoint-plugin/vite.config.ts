@@ -1,9 +1,9 @@
-import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vite'
-import dts from 'vite-plugin-dts'
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vite';
+import dts from 'vite-plugin-dts';
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url))
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig({
   plugins: [
@@ -22,14 +22,14 @@ export default defineConfig({
       external: ['vue'],
       output: {
         globals: {
-          vue: 'Vue'
-        }
-      }
-    }
+          vue: 'Vue',
+        },
+      },
+    },
   },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
     },
   },
-})
+});

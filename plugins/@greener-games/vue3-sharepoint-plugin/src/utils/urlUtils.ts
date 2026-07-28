@@ -1,4 +1,3 @@
-
 /**
  * Utility function to normalize paths to be server-relative.
  *
@@ -12,32 +11,32 @@
  * @returns The normalized server-relative path (e.g. '/sites/MySite/Shared Documents').
  */
 export function getServerRelativePath(path: string, baseUrl: string): string {
-    if (path.startsWith('http')) {
-      try {
-        return decodeURIComponent(new URL(path).pathname)
-      } catch {
-        return path
-      }
-    }
-    if (path.startsWith('/')) {
-      // Already server relative
-      return path
-    }
-
-    // Site relative logic
-    let sitePath = ''
+  if (path.startsWith('http')) {
     try {
-      sitePath = new URL(baseUrl).pathname
+      return decodeURIComponent(new URL(path).pathname);
     } catch {
-      // Fallback if baseUrl is malformed (or relative itself in some edge mock cases)
-      if (baseUrl.startsWith('/')) {
-          sitePath = baseUrl
-      }
+      return path;
     }
+  }
+  if (path.startsWith('/')) {
+    // Already server relative
+    return path;
+  }
 
-    // Ensure no double slash
-    const cleanSite = sitePath.replace(/\/$/, '')
-    const cleanPath = path.replace(/^\//, '')
+  // Site relative logic
+  let sitePath = '';
+  try {
+    sitePath = new URL(baseUrl).pathname;
+  } catch {
+    // Fallback if baseUrl is malformed (or relative itself in some edge mock cases)
+    if (baseUrl.startsWith('/')) {
+      sitePath = baseUrl;
+    }
+  }
 
-    return `${cleanSite}/${cleanPath}`
+  // Ensure no double slash
+  const cleanSite = sitePath.replace(/\/$/, '');
+  const cleanPath = path.replace(/^\//, '');
+
+  return `${cleanSite}/${cleanPath}`;
 }

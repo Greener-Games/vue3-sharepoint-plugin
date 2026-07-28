@@ -35,6 +35,6 @@
     "@types/node": "^20.12.5",
     "typescript": "^5.4.4",
     "vite": "^8.0.13",
-    "vite-plugin-dts": "^4.0.0"
+    "vite-plugin-dts": "^3.9.1"
   }
 }
