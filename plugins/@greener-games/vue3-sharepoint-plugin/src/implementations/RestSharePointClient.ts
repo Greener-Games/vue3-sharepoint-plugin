@@ -756,9 +756,38 @@ export class RestSharePointClient implements ISharePointClient {
           )
           if (found) mp = found
         }
-        if (Array.isArray(value))
-          parts.push(`(${value.map((v) => `${mp}:"${String(v)}"`).join(' OR ')})`)
-        else parts.push(`${mp}:"${String(value)}"`)
+        const formatValue = (v: unknown) => {
+          if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+            const range = v as Record<string, unknown>
+            const rangeParts: string[] = []
+            if (range.gte !== undefined) rangeParts.push(`${mp}>=${range.gte}`)
+            if (range.lte !== undefined) rangeParts.push(`${mp}<=${range.lte}`)
+            if (range.gt !== undefined) rangeParts.push(`${mp}>${range.gt}`)
+            if (range.lt !== undefined) rangeParts.push(`${mp}<${range.lt}`)
+            if (rangeParts.length > 1) {
+              return `(${rangeParts.join(' AND ')})`
+            } else if (rangeParts.length === 1) {
+              return rangeParts[0]
+            }
+            return ''
+          }
+
+          const val = String(v)
+          if (/^(?:>=|<=|<|>|=)/.test(val)) {
+            return `${mp}${val}`
+          }
+          return `${mp}:"${val}"`
+        }
+        
+        if (Array.isArray(value)) {
+          const formatted = value.map((v) => formatValue(v)).filter(Boolean)
+          if (formatted.length > 0) {
+            parts.push(`(${formatted.join(' OR ')})`)
+          }
+        } else {
+          const formatted = formatValue(value)
+          if (formatted) parts.push(formatted)
+        }
       }
     }
     return parts.join(' AND ')

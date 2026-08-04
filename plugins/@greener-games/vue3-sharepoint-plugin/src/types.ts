@@ -25,11 +25,19 @@ export interface ListItemQueryOptions {
   onProgress?: (items: Record<string, unknown>[]) => void
 }
 
+export interface FilterRange {
+  gte?: string | number
+  lte?: string | number
+  gt?: string | number
+  lt?: string | number
+}
+
 export type FilterValue =
   | string
   | number
   | boolean
-  | Array<string | number | boolean>
+  | FilterRange
+  | Array<string | number | boolean | FilterRange>
 
 export interface SearchRequestOptions {
   query?: string
