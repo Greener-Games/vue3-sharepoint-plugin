@@ -1,3 +1,10 @@
+## [1.1.4](https://github.com/Greener-Games/vue3-sharepoint-plugin/compare/v1.1.3...v1.1.4) (2026-08-04)
+
+
+### Bug Fixes
+
+* ability to add filter range elements to a search ([2c78e3b](https://github.com/Greener-Games/vue3-sharepoint-plugin/commit/2c78e3bdc5dec2497e802722efabb67560da75da))
+
 ## [1.1.3](https://github.com/Greener-Games/vue3-sharepoint-plugin/compare/v1.1.2...v1.1.3) (2026-07-24)
 
 
