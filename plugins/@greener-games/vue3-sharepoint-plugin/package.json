@@ -29,7 +29,8 @@
   "dependencies": {
     "@pnp/logging": "^3.0.0",
     "@pnp/queryable": "^3.0.0",
-    "@pnp/sp": "^3.0.0"
+    "@pnp/sp": "^3.0.0",
+    "@vue/language-core": "^2.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.5",

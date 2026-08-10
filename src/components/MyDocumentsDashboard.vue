@@ -3,36 +3,21 @@
     <!-- HEADER -->
     <div class="header-section">
       <h1>{{ pageTitle }}</h1>
-      <p class="subtitle">
-        (b) Ultricies tortor, lectus eget libero sit sit donec purus. Molestie lectus etiam erat sit
-      </p>
+      <p class="subtitle">(b) Ultricies tortor, lectus eget libero sit sit donec purus. Molestie lectus etiam erat sit</p>
     </div>
 
     <!-- SEARCH BAR -->
     <div class="search-bar-wrapper">
       <div class="search-input-group">
         <span class="search-icon">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#5b4bf5"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5b4bf5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
         </span>
         <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Search for Content"
-          class="main-search-input"
-          @keydown.enter="performSearch"
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search for Content"
+            class="main-search-input"
+            @keydown.enter="performSearch"
         />
       </div>
     </div>
@@ -41,7 +26,9 @@
     <div class="results-meta">
       <h3>Results</h3>
       <div class="meta-stats">
-        <span class="stat-item"> <span class="icon">☰</span> {{ totalHits }} Results Found </span>
+        <span class="stat-item">
+          <span class="icon">☰</span> {{ totalHits }} Results Found
+        </span>
         <span v-if="actionCount > 0" class="stat-item warning">
           <span class="icon">⚠</span> {{ actionCount }} Actions Required
         </span>
@@ -49,7 +36,9 @@
     </div>
 
     <!-- LOADING STATE -->
-    <div v-if="loading" class="loading-state">Searching...</div>
+    <div v-if="loading" class="loading-state">
+      Searching...
+    </div>
 
     <!-- ERROR STATE -->
     <div v-if="error" class="error-state">
@@ -60,42 +49,40 @@
     <div v-if="!loading && formattedResults.length > 0" class="table-container">
       <table>
         <thead>
-          <tr>
-            <th class="col-file">File <span class="sort-carat">⌄</span></th>
-            <th class="col-type">Type <span class="sort-carat">⌄</span></th>
-            <th class="col-lang">Language <span class="sort-carat">⌄</span></th>
-            <th class="col-owner">Owner <span class="sort-carat">⌄</span></th>
-            <th class="col-status">Status <span class="sort-carat">⌄</span></th>
-            <th class="col-date">Published <span class="sort-carat">⌄</span></th>
-            <th class="col-action">Action <span class="sort-carat">⌄</span></th>
-          </tr>
+        <tr>
+          <th class="col-file">File <span class="sort-carat">⌄</span></th>
+          <th class="col-type">Type <span class="sort-carat">⌄</span></th>
+          <th class="col-lang">Language <span class="sort-carat">⌄</span></th>
+          <th class="col-owner">Owner <span class="sort-carat">⌄</span></th>
+          <th class="col-status">Status <span class="sort-carat">⌄</span></th>
+          <th class="col-date">Published <span class="sort-carat">⌄</span></th>
+          <th class="col-action">Action <span class="sort-carat">⌄</span></th>
+        </tr>
         </thead>
         <tbody>
-          <tr v-for="(row, index) in formattedResults" :key="index">
-            <!-- File -->
-            <td>
-              <div class="file-cell">
-                <span class="paperclip">🔗</span>
-                <a :href="row.path" target="_blank" class="file-link">{{ row.title }}</a>
-              </div>
-            </td>
-            <td>{{ row.type || 'Generic' }}</td>
-            <td>{{ row.language || 'English' }}</td>
-            <td>{{ row.owner }}</td>
-            <td>
-              <span class="status-text">{{ row.status }}</span>
-            </td>
-            <td>{{ row.created }}</td>
-            <td>
-              <button
+        <tr v-for="(row, index) in formattedResults" :key="index">
+          <!-- File -->
+          <td>
+            <div class="file-cell">
+              <span class="paperclip">🔗</span>
+              <a :href="row.path" target="_blank" class="file-link">{{ row.title }}</a>
+            </div>
+          </td>
+          <td>{{ row.type || 'Generic' }}</td>
+          <td>{{ row.language || 'English' }}</td>
+          <td>{{ row.owner }}</td>
+          <td><span class="status-text">{{ row.status }}</span></td>
+          <td>{{ row.created }}</td>
+          <td>
+            <button
                 v-if="viewMode === 'myteam' && row.status === 'Pending'"
                 class="action-btn"
                 @click="handleAction(row)"
-              >
-                Review / Approve
-              </button>
-            </td>
-          </tr>
+            >
+              Review / Approve
+            </button>
+          </td>
+        </tr>
         </tbody>
       </table>
     </div>
@@ -115,17 +102,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
-import { useSharePoint } from '@greener-games/vue3-sharepoint-plugin';
-import type { SearchRequestOptions } from '@greener-games/vue3-sharepoint-plugin';
+import { ref, onMounted, computed, watch } from 'vue'
+import { useSharePoint } from '@greener-games/vue3-sharepoint-plugin'
+import type { SearchRequestOptions } from '@greener-games/vue3-sharepoint-plugin'
 
 // --- Props ---
 const props = defineProps<{
-  viewMode: 'mydocuments' | 'myteam';
-}>();
+  viewMode: 'mydocuments' | 'myteam'
+}>()
 
 // --- State ---
-const { createSearch, loadUser, currentUser } = useSharePoint();
+const { createSearch, loadUser, currentUser } = useSharePoint()
 const {
   execute,
   results,
@@ -136,18 +123,18 @@ const {
   prevPage,
   hasPrev,
   hasNext,
-  pageInfo,
-} = createSearch();
+  pageInfo
+} = createSearch()
 
-const searchQuery = ref('');
+const searchQuery = ref('')
 
 // --- Computed ---
 const pageTitle = computed(() => {
-  return props.viewMode === 'myteam' ? 'My Team' : 'My Documents';
-});
+  return props.viewMode === 'myteam' ? 'My Team' : 'My Documents'
+})
 
 const formattedResults = computed(() => {
-  if (!results.value || !results.value.items) return [];
+  if (!results.value || !results.value.items) return []
 
   return results.value.items.map((item: Record<string, unknown>) => {
     // Mapping Search Results (Managed Properties) to UI
@@ -158,38 +145,37 @@ const formattedResults = computed(() => {
       language: (item.DocLanguage as string) || 'English',
       owner: (item.DocOwner as string) || (item.Author as string) || 'Unknown',
       status: (item.DocStatus as string) || 'Published',
-      created: item.Created
-        ? new Date(item.Created as string).toLocaleDateString('en-GB').replace(/\//g, '-')
-        : '00-00-0000',
-    };
-  });
-});
+      created: item.Created ? new Date(item.Created as string).toLocaleDateString('en-GB').replace(/\//g, '-') : '00-00-0000',
+    }
+  })
+})
 
 const actionCount = computed(() => {
-  return formattedResults.value.filter((r) => r.status === 'Pending').length;
-});
+  return formattedResults.value.filter(r => r.status === 'Pending').length
+})
 
 // --- Logic ---
 const performSearch = async () => {
-  if (!currentUser.value) await loadUser();
-  const userEmail = currentUser.value?.Email;
+  if (!currentUser.value) await loadUser()
+  const userEmail = currentUser.value?.Email
 
   if (!userEmail) {
-    console.error('User not found');
-    return;
+    console.error("User not found")
+    return
   }
 
   // Define our Filters Object
-  const filters: Record<string, string> = {};
+  const filters: Record<string, string> = {}
 
   // Apply logic based on viewMode
   if (props.viewMode === 'mydocuments') {
     // "Author" is a standard Managed Property in SharePoint
-    filters.Author = userEmail;
-  } else if (props.viewMode === 'myteam') {
+    filters.Author = userEmail
+  }
+  else if (props.viewMode === 'myteam') {
     // "LineManager" MUST be mapped to a Managed Property in SharePoint Admin Center
     // even if it exists as a column on the list.
-    filters.LineManager = userEmail;
+    filters.LineManager = userEmail
   }
 
   // Execute Search
@@ -210,37 +196,34 @@ const performSearch = async () => {
       'DocumentType',
       'DocLanguage',
       'DocOwner',
-      'DocStatus',
+      'DocStatus'
     ],
 
     rowLimit: 20,
-    sortList: [{ property: 'Created', direction: 'ascending' }],
-  };
+    sortList: [{ property: 'Created', direction: 'ascending' }]
+  }
 
-  await execute(options);
-};
+  await execute(options)
+}
 
 const handleAction = (row: Record<string, unknown>) => {
-  alert(`Opening review dialog for: ${row.title as string}`);
-};
+  alert(`Opening review dialog for: ${row.title as string}`)
+}
 
 // --- Lifecycle ---
 onMounted(async () => {
   try {
-    await loadUser();
-    await performSearch();
+    await loadUser()
+    await performSearch()
   } catch (e: unknown) {
-    console.error('Failed to initialize search:', e);
+    console.error('Failed to initialize search:', e)
   }
-});
+})
 
-watch(
-  () => props.viewMode,
-  () => {
-    searchQuery.value = '';
-    void performSearch();
-  },
-);
+watch(() => props.viewMode, () => {
+  searchQuery.value = ''
+  void performSearch()
+})
 </script>
 
 <style scoped>

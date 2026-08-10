@@ -1,23 +1,14 @@
 // eslint.config.js (ESM)
-import js from '@eslint/js';
-import tseslint from 'typescript-eslint';
-import pluginVue from 'eslint-plugin-vue';
-import vueParser from 'vue-eslint-parser'; //explicit Vue SFC parser
-import globals from 'globals';
-import prettier from 'eslint-config-prettier';
+import js from '@eslint/js'
+import tseslint from 'typescript-eslint'
+import pluginVue from 'eslint-plugin-vue'
+import vueParser from 'vue-eslint-parser'         //explicit Vue SFC parser
+import globals from 'globals'
+import prettier from 'eslint-config-prettier'
 
 export default [
   // Ignore build outputs and config file
-  {
-    ignores: [
-      '**/dist/**',
-      'node_modules/**',
-      '.vite/**',
-      'coverage/**',
-      'eslint.config.js',
-      '.templateScripts/**',
-    ],
-  },
+  { ignores: ['**/dist/**', 'node_modules/**', '.vite/**', 'coverage/**', 'eslint.config.js', '.templateScripts/**'] },
 
   // Base JS rules
   js.configs.recommended,

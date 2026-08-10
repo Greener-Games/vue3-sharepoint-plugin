@@ -1,5 +1,5 @@
 <template>
-  <!--  <div>
+<!--  <div>
     <a href="https://vite.dev" target="_blank">
       <img src="/vite.svg" class="logo" alt="Vite logo" />
     </a>
@@ -8,16 +8,16 @@
     </a>
   </div>
   <HelloWorld msg="Vite + Vue" />-->
-  <cv-search />
-  <document-upload-test />
-  <my-documents-dashboard view-mode="myteam" />
-  <my-documents-dashboard view-mode="mydocuments" />
+  <cv-search/>
+  <document-upload-test/>
+  <my-documents-dashboard view-mode="myteam"/>
+  <my-documents-dashboard view-mode="mydocuments"/>
 </template>
 
 <script setup lang="ts">
-import CvSearch from '@/components/CvSearch.vue';
-import DocumentUploadTest from '@/components/DocumentUploadTest.vue';
-import MyDocumentsDashboard from '@/components/MyDocumentsDashboard.vue';
+import CvSearch from "@/components/CvSearch.vue";
+import DocumentUploadTest from "@/components/DocumentUploadTest.vue";
+import MyDocumentsDashboard from "@/components/MyDocumentsDashboard.vue";
 </script>
 
 <style scoped>

@@ -3,32 +3,20 @@
     <!-- HEADER -->
     <div class="header-section">
       <h1>Drop Off Library</h1>
-      <p class="subtitle">
-        (b) Ultricies tortor, lectus eget libero sit sit donec purus. Molestie lectus etiam erat sit
-      </p>
+      <p class="subtitle">(b) Ultricies tortor, lectus eget libero sit sit donec purus. Molestie lectus etiam erat sit</p>
     </div>
 
     <!-- DRAG AND DROP ZONE -->
     <div
-      class="upload-zone"
-      :class="{ 'is-dragging': isDragging }"
-      @dragover.prevent="isDragging = true"
-      @dragleave.prevent="isDragging = false"
-      @drop.prevent="handleDrop"
+        class="upload-zone"
+        :class="{ 'is-dragging': isDragging }"
+        @dragover.prevent="isDragging = true"
+        @dragleave.prevent="isDragging = false"
+        @drop.prevent="handleDrop"
     >
       <div class="upload-content">
         <div class="upload-icon-wrapper">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="17 8 12 3 7 8"></polyline>
             <line x1="12" y1="3" x2="12" y2="15"></line>
@@ -42,11 +30,11 @@
         <p class="file-limit">(Max File Size: 25mb)</p>
 
         <input
-          ref="fileInputRef"
-          type="file"
-          multiple
-          class="hidden-input"
-          @change="handleFileSelect"
+            ref="fileInputRef"
+            type="file"
+            multiple
+            class="hidden-input"
+            @change="handleFileSelect"
         />
       </div>
     </div>
@@ -60,98 +48,79 @@
     <div v-if="files.length > 0" class="table-container">
       <table>
         <thead>
-          <tr>
-            <th style="width: 20%">File</th>
-            <th style="width: 15%">Type</th>
-            <th style="width: 15%">Language</th>
-            <th style="width: 15%">Owner</th>
-            <th style="width: 10%">Created</th>
-            <th style="width: 15%">Status</th>
-            <th style="width: 5%"></th>
-            <!-- Size -->
-            <th style="width: 5%"></th>
-            <!-- Delete -->
-          </tr>
+        <tr>
+          <th style="width: 20%">File</th>
+          <th style="width: 15%">Type</th>
+          <th style="width: 15%">Language</th>
+          <th style="width: 15%">Owner</th>
+          <th style="width: 10%">Created</th>
+          <th style="width: 15%">Status</th>
+          <th style="width: 5%"></th> <!-- Size -->
+          <th style="width: 5%"></th> <!-- Delete -->
+        </tr>
         </thead>
         <tbody>
-          <tr v-for="(item, index) in files" :key="index">
-            <!-- File Name -->
-            <td>
-              <div class="file-name-cell">
-                <span class="paperclip-icon">🔗</span>
-                <span class="filename-text" :title="item.file.name">{{
-                  truncateName(item.file.name)
-                }}</span>
-              </div>
-            </td>
+        <tr v-for="(item, index) in files" :key="index">
+          <!-- File Name -->
+          <td>
+            <div class="file-name-cell">
+              <span class="paperclip-icon">🔗</span>
+              <span class="filename-text" :title="item.file.name">{{ truncateName(item.file.name) }}</span>
+            </div>
+          </td>
 
-            <!-- Type Dropdown -->
-            <td>
-              <select v-model="item.meta.type" class="table-input">
-                <option value="" disabled selected>Select Type</option>
-                <option value="CV">Custom CV</option>
-                <option value="Headshot">Headshot</option>
-                <option value="Certificate">Certificate</option>
-              </select>
-            </td>
+          <!-- Type Dropdown -->
+          <td>
+            <select v-model="item.meta.type" class="table-input">
+              <option value="" disabled selected>Select Type</option>
+              <option value="CV">Custom CV</option>
+              <option value="Headshot">Headshot</option>
+              <option value="Certificate">Certificate</option>
+            </select>
+          </td>
 
-            <!-- Language Dropdown -->
-            <td>
-              <select v-model="item.meta.language" class="table-input">
-                <option value="" disabled selected>Select Language</option>
-                <option value="English">English</option>
-                <option value="French">French</option>
-                <option value="Spanish">Spanish</option>
-                <option value="N/A">N/A</option>
-              </select>
-            </td>
+          <!-- Language Dropdown -->
+          <td>
+            <select v-model="item.meta.language" class="table-input">
+              <option value="" disabled selected>Select Language</option>
+              <option value="English">English</option>
+              <option value="French">French</option>
+              <option value="Spanish">Spanish</option>
+              <option value="N/A">N/A</option>
+            </select>
+          </td>
 
-            <!-- Owner Input -->
-            <td>
-              <input
+          <!-- Owner Input -->
+          <td>
+            <input
                 v-model="item.meta.owner"
                 type="text"
                 placeholder="Enter name..."
                 class="table-input"
-              />
-            </td>
+            >
+          </td>
 
-            <!-- Created Date -->
-            <td class="text-muted">{{ item.created }}</td>
+          <!-- Created Date -->
+          <td class="text-muted">{{ item.created }}</td>
 
-            <!-- Status -->
-            <td>
+          <!-- Status -->
+          <td>
               <span :class="['status-text', getStatus(item).class]">
                 {{ getStatus(item).text }}
                 <span v-if="getStatus(item).valid" class="check-icon">✓</span>
               </span>
-            </td>
+          </td>
 
-            <!-- Size -->
-            <td class="text-muted text-right">{{ formatSize(item.file.size) }}</td>
+          <!-- Size -->
+          <td class="text-muted text-right">{{ formatSize(item.file.size) }}</td>
 
-            <!-- Delete Action -->
-            <td class="text-center">
-              <button class="trash-btn" @click="removeFile(index)">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path
-                    d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                  ></path>
-                </svg>
-              </button>
-            </td>
-          </tr>
+          <!-- Delete Action -->
+          <td class="text-center">
+            <button class="trash-btn" @click="removeFile(index)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+          </td>
+        </tr>
         </tbody>
       </table>
     </div>
@@ -159,7 +128,11 @@
     <!-- FOOTER ACTIONS -->
     <div class="footer-actions">
       <button class="btn-outline" @click="triggerFileInput">Attach More File(s)</button>
-      <button class="btn-primary" :disabled="!canSubmit || isUploading" @click="submitFiles">
+      <button
+          class="btn-primary"
+          :disabled="!canSubmit || isUploading"
+          @click="submitFiles"
+      >
         {{ isUploading ? 'Uploading...' : 'Submit' }}
       </button>
     </div>
@@ -172,157 +145,156 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
-import { useSharePoint } from '@greener-games/vue3-sharepoint-plugin';
+import { ref, reactive, computed } from 'vue'
+import { useSharePoint } from '@greener-games/vue3-sharepoint-plugin'
 
 // --- Types ---
 interface FileMeta {
-  type: string;
-  language: string;
-  owner: string;
+  type: string
+  language: string
+  owner: string
 }
 
 interface FileRow {
-  file: File;
-  id: string;
-  created: string;
-  meta: FileMeta;
-  uploadStatus: 'pending' | 'success' | 'error';
+  file: File
+  id: string
+  created: string
+  meta: FileMeta
+  uploadStatus: 'pending' | 'success' | 'error'
 }
 
 // --- Config ---
 // Hardcoded path based on your previous snippet, since the UI no longer has an input for it
-const TARGET_FOLDER = '/sites/TestSite/Shared Documents';
+const TARGET_FOLDER = '/sites/TestSite/Shared Documents'
 
 // --- State ---
-const { upload, updateFileMetadata } = useSharePoint();
-const fileInputRef = ref<HTMLInputElement | null>(null);
-const files = reactive<FileRow[]>([]);
-const isDragging = ref(false);
-const isUploading = ref(false);
-const globalMessage = ref('');
-const isError = ref(false);
+const { upload, updateFileMetadata } = useSharePoint()
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const files = reactive<FileRow[]>([])
+const isDragging = ref(false)
+const isUploading = ref(false)
+const globalMessage = ref('')
+const isError = ref(false)
 
 // --- Computeds ---
 const canSubmit = computed(() => {
-  if (files.length === 0) return false;
+  if (files.length === 0) return false
   // Check if every file has required fields filled
-  return files.every((f) => f.meta.type && f.meta.language && f.meta.owner);
-});
+  return files.every(f => f.meta.type && f.meta.language && f.meta.owner)
+})
 
 // --- Helpers ---
 const triggerFileInput = () => {
-  fileInputRef.value?.click();
-};
+  fileInputRef.value?.click()
+}
 
 const formatSize = (bytes: number) => {
-  if (bytes === 0) return '0mb';
-  const mb = bytes / (1024 * 1024);
-  if (mb < 0.1) return '<0.1mb';
-  return mb.toFixed(1) + 'mb';
-};
+  if (bytes === 0) return '0mb'
+  const mb = bytes / (1024 * 1024)
+  if (mb < 0.1) return '<0.1mb'
+  return mb.toFixed(1) + 'mb'
+}
 
 const truncateName = (name: string) => {
-  return name.length > 25 ? name.substring(0, 22) + '...' : name;
-};
+  return name.length > 25 ? name.substring(0, 22) + '...' : name
+}
 
 const getStatus = (item: FileRow) => {
-  if (item.uploadStatus === 'success')
-    return { text: 'Uploaded', class: 'text-success', valid: true };
-  if (item.uploadStatus === 'error') return { text: 'Failed', class: 'text-error', valid: false };
+  if (item.uploadStatus === 'success') return { text: 'Uploaded', class: 'text-success', valid: true }
+  if (item.uploadStatus === 'error') return { text: 'Failed', class: 'text-error', valid: false }
 
-  const isValid = item.meta.type && item.meta.language && item.meta.owner;
+  const isValid = item.meta.type && item.meta.language && item.meta.owner
   return isValid
-    ? { text: 'Ready to go', class: 'text-success', valid: true }
-    : { text: 'Requires info', class: 'text-danger', valid: false };
-};
+      ? { text: 'Ready to go', class: 'text-success', valid: true }
+      : { text: 'Requires info', class: 'text-danger', valid: false }
+}
 
 // --- File Handling ---
 const processFiles = (fileList: FileList | null) => {
-  if (!fileList) return;
+  if (!fileList) return
 
-  const newFiles = Array.from(fileList).map((f) => ({
+  const newFiles = Array.from(fileList).map(f => ({
     file: f,
     id: Math.random().toString(36).substring(7),
     created: new Date().toLocaleDateString('en-GB').replace(/\//g, '-'), // 00-00-0000 format
     meta: {
       type: '',
       language: '',
-      owner: '', // Defaults to empty, user must fill
+      owner: '' // Defaults to empty, user must fill
     },
-    uploadStatus: 'pending' as const,
-  }));
+    uploadStatus: 'pending' as const
+  }))
 
-  files.push(...newFiles);
-};
+  files.push(...newFiles)
+}
 
 const handleFileSelect = (event: Event) => {
-  const input = event.target as HTMLInputElement;
-  processFiles(input.files);
-  input.value = ''; // Reset
-};
+  const input = event.target as HTMLInputElement
+  processFiles(input.files)
+  input.value = '' // Reset
+}
 
 const handleDrop = (event: DragEvent) => {
-  isDragging.value = false;
+  isDragging.value = false
   if (event.dataTransfer?.files) {
-    processFiles(event.dataTransfer.files);
+    processFiles(event.dataTransfer.files)
   }
-};
+}
 
 const removeFile = (index: number) => {
-  files.splice(index, 1);
-};
+  files.splice(index, 1)
+}
 
 // --- Upload Logic ---
 const submitFiles = async () => {
-  if (!canSubmit.value) return;
+  if (!canSubmit.value) return
 
-  isUploading.value = true;
-  globalMessage.value = '';
-  isError.value = false;
+  isUploading.value = true
+  globalMessage.value = ''
+  isError.value = false
 
-  let failureCount = 0;
+  let failureCount = 0
 
   for (const item of files) {
-    if (item.uploadStatus === 'success') continue;
+    if (item.uploadStatus === 'success') continue
 
     try {
       // 1. Upload File
-      await upload(TARGET_FOLDER, item.file.name, item.file);
+      await upload(TARGET_FOLDER, item.file.name, item.file)
 
       // 2. Set Metadata
       // Construct URL (SharePoint usually needs server relative URL for updating metadata)
-      const cleanFolder = TARGET_FOLDER.replace(/\/+$/, '');
-      const fileUrl = `${cleanFolder}/${item.file.name}`;
+      const cleanFolder = TARGET_FOLDER.replace(/\/+$/, '')
+      const fileUrl = `${cleanFolder}/${item.file.name}`
 
       // Map UI fields to SharePoint Internal Column Names
       // Ensure these keys (DocumentType, DocLanguage, DocOwner) match your SP List settings!
       const metadata = {
         DocumentType: item.meta.type,
         DocLanguage: item.meta.language,
-        DocOwner: item.meta.owner,
-      };
+        DocOwner: item.meta.owner
+      }
 
-      await updateFileMetadata(fileUrl, metadata);
+      await updateFileMetadata(fileUrl, metadata)
 
-      item.uploadStatus = 'success';
+      item.uploadStatus = 'success'
     } catch (e) {
-      console.error('Upload failed for', item.file.name, e);
-      item.uploadStatus = 'error';
-      failureCount++;
+      console.error('Upload failed for', item.file.name, e)
+      item.uploadStatus = 'error'
+      failureCount++
     }
   }
 
-  isUploading.value = false;
+  isUploading.value = false
   if (failureCount > 0) {
-    isError.value = true;
-    globalMessage.value = `${failureCount} file(s) failed to upload.`;
+    isError.value = true
+    globalMessage.value = `${failureCount} file(s) failed to upload.`
   } else {
-    globalMessage.value = 'All files submitted successfully.';
+    globalMessage.value = 'All files submitted successfully.'
     // Optional: Clear list on success
     // files.splice(0, files.length)
   }
-};
+}
 </script>
 
 <style scoped>
@@ -330,7 +302,7 @@ const submitFiles = async () => {
 .drop-off-library {
   max-width: 1100px;
   margin: 0 auto;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: #333;
   padding: 20px;
   background-color: #fff;
@@ -509,15 +481,9 @@ tr:last-child td {
   gap: 4px;
 }
 
-.text-danger {
-  color: #ef4444;
-}
-.text-success {
-  color: #10b981;
-}
-.text-error {
-  color: #dc2626;
-}
+.text-danger { color: #ef4444; }
+.text-success { color: #10b981; }
+.text-error { color: #dc2626; }
 
 .check-icon {
   border: 1px solid #10b981;
@@ -545,12 +511,8 @@ tr:last-child td {
   color: #ef4444;
 }
 
-.text-right {
-  text-align: right;
-}
-.text-center {
-  text-align: center;
-}
+.text-right { text-align: right; }
+.text-center { text-align: center; }
 
 /* FOOTER */
 .footer-actions {
