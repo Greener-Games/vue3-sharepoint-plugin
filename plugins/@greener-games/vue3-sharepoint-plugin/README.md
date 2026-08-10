@@ -72,10 +72,10 @@ app.mount('#app')
 If you need specific testing scenarios, you can define the `MockData` object manually or use the exposed helper functions.
 
 ```typescript
-import { 
-  MockSharePointClient, 
-  createMockUser, 
-  type MockData 
+import {
+  MockSharePointClient,
+  createMockUser,
+  type MockData
 } from 'vue3-sharepoint-plugin'
 
 const customMock: MockData = {
@@ -132,7 +132,7 @@ const searchCtx = createSearch()
 
 const handleSearch = () => {
   searchCtx.execute({
-    query: 'Engineering', 
+    query: 'Engineering',
     rowLimit: 10,
     scope: 'Shared Documents', // Automatically inferred as relative to baseUrl
     resultType: 'items', // Exclude folders

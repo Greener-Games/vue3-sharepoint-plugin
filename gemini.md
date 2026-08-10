@@ -31,11 +31,11 @@
     3. `<style>` (only if necessary)
 - **Reactivity**: Prefer `ref()` over `reactive()` for all state primitives and objects to maintain clear `.value` usage.
 - **Props/Emits**: Use compiler-macros: `defineProps<{ ... }>()` and `defineEmits<{ ... }>()`.
-- **Accessibility (a11y)**: 
+- **Accessibility (a11y)**:
     - Use **Semantic HTML** tags (e.g., `<nav>`, `<main>`, `<article>`, `<button>`).
     - Ensure all interactive elements have visible `focus-visible` states.
     - Provide `aria-label` or `aria-labelledby` for icon-only buttons.
-- **Iconography**: 
+- **Iconography**:
     - **Default**: Use [Lucide Icons](https://lucide.dev/) and [Lucide Animated](https://lucide-animated.com/).
     - **SVG Strategy**: Use neutral/white SVGs as base. Colorize them using Tailwind CSS text-color classes (e.g., `text-primary`).
     - **Custom SVGs**: Ensure custom SVGs use `stroke="currentColor"` or `fill="currentColor"` to allow CSS color injection.
@@ -65,7 +65,7 @@
     2. **Semantic/Generic Colors**: Define functional variables (e.g., `--color-primary`, `--color-surface`, `--color-text-main`) that reference the brand variables via `var()`.
 - **Semantic-First Approach**: Always use generic/semantic variables for the majority of the application. Brand-specific variables should only be used for fixed identity elements.
 - **Responsive Design**: Follow a **Mobile-First** approach using Tailwind responsive prefixes (`sm:`, `md:`, `lg:`).
-- **Micro-animations**: 
+- **Micro-animations**:
     - Incorporate subtle transitions (hover scales, gentle fades) to make the UI feel fresh and modern.
     - **A11y**: Use `motion-safe:` variants and respect `prefers-reduced-motion`.
 - **Organization via Layers**: Wrap global CSS in `@layer components` or `@layer utilities`.

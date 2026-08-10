@@ -29,12 +29,13 @@
   "dependencies": {
     "@pnp/logging": "^3.0.0",
     "@pnp/queryable": "^3.0.0",
-    "@pnp/sp": "^3.0.0"
+    "@pnp/sp": "^3.0.0",
+    "@vue/language-core": "^2.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.5",
     "typescript": "^5.4.4",
     "vite": "^8.0.13",
-    "vite-plugin-dts": "^4.0.0"
+    "vite-plugin-dts": "^3.9.1"
   }
 }

@@ -257,12 +257,13 @@ export class PnPSharePointClient implements ISharePointClient {
             if (typeof item.ListId === 'string' && (typeof item.ListItemId === 'string' || typeof item.ListItemId === 'number')) {
               const listId = item.ListId
               const itemId = typeof item.ListItemId === 'string' ? parseInt(item.ListItemId, 10) : item.ListItemId
-              
+
               let q = this.sp.web.lists.getById(listId).items.getById(itemId)
               if (listSelect.length > 0) q = q.select(...listSelect)
               if (userExpands.length > 0) q = q.expand(...userExpands)
 
               try {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                 const hydrated = await q()
                 if (hydrated) {
                   Object.assign(item, hydrated)
@@ -346,6 +347,7 @@ export class PnPSharePointClient implements ISharePointClient {
 
   /** Executes multiple SharePoint operations in a single batch */
   async executeBatch(builder: (batch: IBatch) => void, _abortSignal?: AbortSignal): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const promises: Promise<any>[] = []
 
     const proxy: IBatch = {
