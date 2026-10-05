@@ -1,8 +1,30 @@
 {
   "name": "@greener-games/vue3-sharepoint-plugin",
   "version": "1.1.4",
-  "author": "",
+  "description": "A robust, type-safe wrapper for SharePoint operations in Vue 3 applications.",
+  "author": "Greener Games",
   "license": "MIT",
+  "homepage": "https://github.com/Greener-Games/vue3-sharepoint-plugin#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Greener-Games/vue3-sharepoint-plugin.git",
+    "directory": "plugins/@greener-games/vue3-sharepoint-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/Greener-Games/vue3-sharepoint-plugin/issues"
+  },
+  "keywords": [
+    "vue",
+    "vue3",
+    "sharepoint",
+    "pnpjs",
+    "pnp",
+    "mock",
+    "search",
+    "crud",
+    "typescript",
+    "plugin"
+  ],
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",

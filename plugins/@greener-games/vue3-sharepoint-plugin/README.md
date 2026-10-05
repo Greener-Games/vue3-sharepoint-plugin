@@ -1,4 +1,6 @@
-# Vue 3 SharePoint Plugin
+# @greener-games/vue3-sharepoint-plugin
+
+A robust, type-safe wrapper for SharePoint operations in Vue 3 applications. This plugin provides a unified interface for Search, CRUD, File operations, and Batching, supporting both **PnPjs** (Production) and an in-memory **Mock Engine** (Development/Testing).
 
 [![Vite](https://img.shields.io/badge/vite-%23646CFF.svg?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D.svg?style=flat&logo=vue.js&logoColor=white)](https://vuejs.org/)
@@ -9,20 +11,31 @@
 [![CI](https://github.com/Greener-Games/vue3-sharepoint-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/Greener-Games/vue3-sharepoint-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A robust, type-safe wrapper for SharePoint operations in Vue 3 applications. This plugin provides a unified interface for Search, CRUD, File operations, and Batching, supporting both **PnPjs** (Production) and an in-memory **Mock Engine** (Development/Testing).
+## Features
+
+- 🔍 **Unified Search Engine**: Isolated search instances, fluent query execution, token replacement, and metadata adapters.
+- ⚡ **Multiple Clients**: Support for PnPjs, raw SharePoint REST API, and an in-memory Mock Engine.
+- 🧪 **Offline Mocking**: Built-in mock data generators for users, groups, and documents to develop and test without a live SharePoint connection.
+- 📁 **File & Folder Operations**: Unified methods for querying, uploading, downloading, and moving documents.
+- 📦 **Batch Operations**: Group multiple requests together to minimize round-trips.
+- 🛡️ **Type Safety**: Strictly typed interfaces and composables for seamless Vue 3 Composition API usage.
 
 ## 📦 Installation
 
-### 1. Install Dependencies
-The plugin relies on PnPjs for the production implementation.
 ```bash
-npm install @pnp/sp @pnp/logging @pnp/queryable
+npm install @greener-games/vue3-sharepoint-plugin
+# or
+yarn add @greener-games/vue3-sharepoint-plugin
+# or
+pnpm add @greener-games/vue3-sharepoint-plugin
 ```
 
-### 2. Link the Plugin (Local Development)
-If you are developing the plugin locally alongside your app, update your `vite.config.ts` alias or install it via file path:
+> **Note**: For production use with `PnPSharePointClient`, PnPjs dependencies (`@pnp/sp`, `@pnp/logging`, `@pnp/queryable`) are bundled automatically.
+
+### Local Development / Monorepo Linking
+If developing or testing locally within a monorepo workspace:
 ```bash
-npm install ./plugins/vue3-sharepoint-plugin
+npm install ./plugins/@greener-games/vue3-sharepoint-plugin
 ```
 
 ---
@@ -42,7 +55,7 @@ import {
   PnPSharePointClient,
   MockSharePointClient,
   createMockData
-} from 'vue3-sharepoint-plugin'
+} from '@greener-games/vue3-sharepoint-plugin'
 
 const app = createApp(App)
 const isDev = import.meta.env.DEV
@@ -76,7 +89,7 @@ import {
   MockSharePointClient,
   createMockUser,
   type MockData
-} from 'vue3-sharepoint-plugin'
+} from '@greener-games/vue3-sharepoint-plugin'
 
 const customMock: MockData = {
   currentUser: createMockUser(1, 'Tester', 'test@local'),
@@ -122,7 +135,7 @@ The search engine uses a **Factory Pattern**. You create an isolated search inst
 
 ```typescript
 <script setup lang="ts">
-import { useSharePoint } from 'vue3-sharepoint-plugin'
+import { useSharePoint } from '@greener-games/vue3-sharepoint-plugin'
 
 // 1. Get the factory
 const { createSearch } = useSharePoint()
@@ -245,7 +258,7 @@ All CRUD methods are available directly from `useSharePoint()`.
 
 ### Usage Example
 ```typescript
-import { useSharePoint } from 'vue3-sharepoint-plugin'
+import { useSharePoint } from '@greener-games/vue3-sharepoint-plugin'
 
 const { addItem, updateItem, deleteItem } = useSharePoint()
 
@@ -443,3 +456,9 @@ Returns the current logged-in user. Caches the result to avoid repeated API call
 | :--- | :--- | :--- |
 | `listTitle` | `string` | The display name of the list. |
 | `fieldName` | `string` | The internal name or title of the choice column. |
+
+---
+
+## License
+
+MIT

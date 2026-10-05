@@ -1,5 +1,7 @@
 # Vue 3 SharePoint Plugin Repository
 
+A robust, type-safe wrapper for SharePoint operations in Vue 3 applications. This plugin provides a unified interface for Search, CRUD, File operations, and Batching, supporting both **PnPjs** (Production) and an in-memory **Mock Engine** (Development/Testing).
+
 [![Vite](https://img.shields.io/badge/vite-%23646CFF.svg?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D.svg?style=flat&logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178C6.svg?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -9,9 +11,7 @@
 [![CI](https://github.com/Greener-Games/vue3-sharepoint-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/Greener-Games/vue3-sharepoint-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This is the main repository for the **Vue 3 SharePoint Plugin**.
-
-A robust, type-safe wrapper for SharePoint operations in Vue 3 applications. This plugin provides a unified interface for Search, CRUD, File operations, and Batching, supporting both **PnPjs** (Production) and an in-memory **Mock Engine** (Development/Testing).
+This is the main repository for the **Vue 3 SharePoint Plugin** (`@greener-games/vue3-sharepoint-plugin`).
 
 ## 📚 Documentation
 

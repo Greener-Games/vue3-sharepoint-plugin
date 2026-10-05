@@ -2,6 +2,7 @@
   "name": "my-vue-app",
   "private": true,
   "version": "1.1.4",
+  "description": "A robust, type-safe wrapper for SharePoint operations in Vue 3 applications.",
   "type": "module",
   "workspaces": [
     "plugins/*",
