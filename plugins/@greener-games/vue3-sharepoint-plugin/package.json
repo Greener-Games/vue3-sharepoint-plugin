@@ -1,6 +1,6 @@
 {
   "name": "@greener-games/vue3-sharepoint-plugin",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "A robust, type-safe wrapper for SharePoint operations in Vue 3 applications.",
   "author": "Greener Games",
   "license": "MIT",

@@ -1,3 +1,10 @@
+## [1.1.5](https://github.com/Greener-Games/vue3-sharepoint-plugin/compare/v1.1.4...v1.1.5) (2026-10-05)
+
+
+### Bug Fixes
+
+* update plugin readme layout and package metadata for npm listing ([131aaa6](https://github.com/Greener-Games/vue3-sharepoint-plugin/commit/131aaa6e42a254858976f67d1d0ce2894901fcc3))
+
 ## [1.1.4](https://github.com/Greener-Games/vue3-sharepoint-plugin/compare/v1.1.3...v1.1.4) (2026-08-04)
 
 
